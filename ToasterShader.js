@@ -7,6 +7,11 @@ uniform float FloorY;
 #define FarZ	20.0
 #define WorldUp	vec3(0,1,0)
 
+#define Mat_None	0.0
+#define Mat_Floor	0.1
+#define Mat_Toaster	0.2
+#define Mat_Bread	0.3
+#define dm_t	vec2	//	distancematerial
 
 void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
 {
@@ -61,7 +66,8 @@ float sdBox( vec3 p, vec3 c, vec3 b )
 #define ToasterSize	vec3( 0.4, 0.2, 0.2 )
 #define HoleSize	vec3( ToasterSize.x * 0.9, 1.0, 0.06 )
 #define ToastSize	vec3( ToasterSize.x * 0.7, 0.16, 0.03 )
-#define ToastPos1	vec3(0,0.09,0.05)
+#define ToastPos1	(vec3(0,0.09,0.05)+ToasterPos)
+#define ToasterPos	vec3(0,-0.20,0)
 
 float sdToast(vec3 Position,vec3 ToastPosition)
 {
@@ -71,10 +77,12 @@ float sdToast(vec3 Position,vec3 ToastPosition)
 }
 float sdToaster(vec3 Position)
 {
+	Position -=ToasterPos;
 	float Box = sdBox( Position, vec3(0,0,0), ToasterSize/2.0 );
 	float Hole1 = sdBox( Position, vec3(0,0.05,0.05), HoleSize/2.0 );
 	float Hole2 = sdBox( Position, vec3(0,0.05,-0.05), HoleSize/2.0 );
 	float Hole = min(Hole1,Hole2);
+	Box -= 0.01;
 	Box = opSubtraction( Hole, Box );
 	
 	vec3 HandleSize = vec3( 0.03,0.02,0.04);
@@ -90,15 +98,25 @@ float sdToaster(vec3 Position)
 }
 
 
-
-float Map(vec3 Position,vec3 Dir)
+dm_t Closest(dm_t a,dm_t b)
 {
-	float d = 999.0;
-	//d = min( d, sdSphere( Position, vec4(0,0,0,0.10) );
-	d = min( d, sdFloor(Position,Dir).x );	//	only need this for calcnormal
-	d = min( d, sdToaster(Position) );	//	only need this for calcnormal
-	d = min( d, sdToast(Position,ToastPos1) );	//	only need this for calcnormal
+	return a.x < b.x ? a : b;
+}
+
+dm_t Map(vec3 Position,vec3 Dir)
+{
+	dm_t d = dm_t(999.0,Mat_None);
+	//d = Closest( d, sdSphere( Position, vec4(0,0,0,0.10) );
+	d = Closest( d, dm_t( sdFloor(Position,Dir).x, Mat_Floor ) );	//	only need this for calcnormal
+	d = Closest( d, dm_t( sdToaster(Position), Mat_Toaster ) );	//	only need this for calcnormal
+	d = Closest( d, dm_t( sdToast(Position,ToastPos1), Mat_Bread ) );	//	only need this for calcnormal
 	return d;
+}
+
+float MapDistance(vec3 Position)
+{
+	vec3 Dir = vec3(0,0,0);
+	return Map( Position, Dir ).x;
 }
 
 vec3 calcNormal(vec3 pos)
@@ -106,50 +124,119 @@ vec3 calcNormal(vec3 pos)
 	vec2 e = vec2(1.0,-1.0)*0.5773;
 	const float eps = 0.0005;
 	vec3 Dir = vec3(0,0,0);
-	return normalize( e.xyy * Map( pos + e.xyy*eps,Dir ) + 
-					  e.yyx * Map( pos + e.yyx*eps,Dir ) + 
-					  e.yxy * Map( pos + e.yxy*eps,Dir ) + 
-					  e.xxx * Map( pos + e.xxx*eps,Dir ) );
+	return normalize( e.xyy * MapDistance( pos + e.xyy*eps ) + 
+					  e.yyx * MapDistance( pos + e.yyx*eps ) + 
+					  e.yxy * MapDistance( pos + e.yxy*eps ) + 
+					  e.xxx * MapDistance( pos + e.xxx*eps ) );
 }
 
 //	returns distance + hit(later: material)
-vec2 GetRayCastDistance(vec3 RayPos,vec3 RayDir)
+dm_t GetRayCastDistanceMaterial(vec3 RayPos,vec3 RayDir)
 {
 	vec2 FloorTop = sdFloor(RayPos,RayDir);
 	float DidHitFloor = FloorTop.y;
 	float MaxDistance = mix( FarZ, DidHitFloor, FloorTop.x ); 
 	float RayDistance = 0.0;
-	float Hit = DidHitFloor;	//	change to material later. 0 = miss
+	float HitMaterial = mix(Mat_None,Mat_Floor,DidHitFloor);	//	change to material later. 0 = miss
 	for ( int s=0;	s<30;	s++ )
 	{
 		vec3 HitPos = RayPos + (RayDir*RayDistance);
-		float StepDistance = Map(HitPos,RayDir);
-		RayDistance += StepDistance;
-		if ( RayDistance >= MaxDistance )
+		dm_t StepDistanceMat = Map(HitPos,RayDir);
+		RayDistance += StepDistanceMat.x;
+		if ( RayDistance > MaxDistance )
 			break;
-		if ( StepDistance < 0.005 )
+		if ( StepDistanceMat.x < 0.005 )
 		{
-			Hit = 1.0;	//	change to material
+			HitMaterial = StepDistanceMat.y;
 			break;
 		}
 	}
-	return vec2( RayDistance, Hit );
+	return vec2( RayDistance, HitMaterial );
+}
+
+float ZeroOrOne(float f)
+{
+	//	or max(1.0,floor(f+0.0001)) ?
+	//return max( 1.0, f*10000.0);
+	return (f ==0.0) ? 0.0 : 1.0; 
+}
+
+vec3 GetNormalColour(vec3 Normal)
+{
+	Normal += 1.0;
+	Normal /= 2.0;
+	return Normal;
+}
+
+float Range(float Min,float Max,float Value)
+{
+	return (Value-Min) / (Max-Min);
+}
+
+vec3 GetLitColour(vec3 Position,vec3 Normal,vec3 Colour,float Shiny)
+{
+	float Dot = abs( dot( Normal, normalize(WorldLightPosition-Position) ) );
+	Dot = mix( 0.5, 1.0, Dot );
+	Dot *= Dot;
+	//Dot = 1.0 - Dot;	Dot *= Dot;	Dot=1.0-Dot; 
+	
+	Shiny *= 0.15;
+	if ( Dot > 1.0-Shiny )
+		return mix( Colour, vec3(1,1,1), Range(1.0-Shiny, 1.0, Dot ) );
+	Colour *= Dot;
+	return Colour;
+}
+
+vec2 rotate(vec2 v, float a) {
+	float s = sin(a);
+	float c = cos(a);
+	mat2 m = mat2(c, -s, s, c);
+	return m * v;
+}
+
+#define FloorWhite	vec3(0.8,0.8,0.9) 
+#define FloorBlue	vec3(0.6,0.7,0.9)
+#define ToasterColour	vec3(0.86,0.2,0.2)
+#define BreadColour		vec3(0.98, 0.88, 0.72 )
+vec3 GetFloorColour(vec3 WorldPosition,vec3 WorldNormal)
+{
+	float CheqSize = 0.1;
+	vec2 Chequer = rotate( WorldPosition.xz, 0.1);
+	Chequer = mod( Chequer, CheqSize ) / CheqSize;
+	bool x = Chequer.x < 0.5;
+	bool y = Chequer.y < 0.5;
+	vec3 Colour = (x==y) ? FloorBlue : FloorWhite;
+	//return GetLitColour(WorldPosition,WorldNormal,Colour,0.0);
+	return Colour;	
+}
+
+vec4 GetMaterialColour(float Material,vec3 WorldPos,vec3 WorldNormal)
+{
+	if ( Material == Mat_Floor )	return vec4(GetFloorColour(WorldPos,WorldNormal),1.0);
+	if ( Material == Mat_Toaster )	return vec4(GetLitColour(WorldPos,WorldNormal,ToasterColour,1.0),1.0);
+	if ( Material == Mat_Bread )	return vec4(GetLitColour(WorldPos,WorldNormal,BreadColour,0.0),1.0);
+	//if ( Material == Mat_None )	
+	return vec4(0,0,0,0);
 }
 
 void main()
 {
 	vec3 RayPos,RayDir;
 	GetWorldRay( RayPos, RayDir );
-	vec4 HitDistance = GetRayCastDistance(RayPos,RayDir).xxxy;
+	vec4 HitDistance = GetRayCastDistanceMaterial(RayPos,RayDir).xxxy;
 	vec3 HitPos = RayPos + (RayDir*HitDistance.x); 
 	vec3 Normal = calcNormal(HitPos);
+
+	vec4 Colour = GetMaterialColour(HitDistance.w,HitPos,Normal);
+		
 	
+
 	//	shadow
-	vec4 HitShadow = GetRayCastDistance( HitPos+Normal*0.1, normalize(WorldLightPosition-HitPos) ).xxxy;
+	vec4 HitShadow = GetRayCastDistanceMaterial( HitPos+Normal*0.1, normalize(WorldLightPosition-HitPos) ).xxxy;
+	//	*= 0 if hit something
+	Colour.xyz *= 1.0 - ZeroOrOne(HitShadow.w);
 	
-	Normal += 1.0;
-	Normal /= 2.0;
-	Normal *= 1.0 - HitShadow.w;
-	gl_FragColor = mix( vec4(1,0,0,1), vec4(Normal,1), HitDistance.w );
+	gl_FragColor = Colour;
+	//if ( Colour.w == 0.0 )	discard;
 }
 `;
