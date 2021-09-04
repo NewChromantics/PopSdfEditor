@@ -13,6 +13,7 @@ uniform mat4 CameraProjectionTransform;
 uniform vec3 WorldMin;
 uniform vec3 WorldMax;
 varying vec3 WorldPosition;	//	output
+varying vec4 OutputProjectionPosition;
 void main()
 {
 	//	expecting cube 0..1
@@ -25,6 +26,7 @@ void main()
 	gl_Position = ProjectionPos;
 	
 	WorldPosition = WorldPos.xyz;
+	OutputProjectionPosition = gl_Position;
 }
 `;
 
@@ -42,6 +44,7 @@ function GetCameraUniforms(Uniforms,ScreenRect)
 	Uniforms.CameraProjectionTransform = Camera.GetProjectionMatrix( RenderTargetRect );
 
 	Uniforms.CameraToWorldTransform = MatrixInverse4x4( Uniforms.WorldToCameraTransform );
+	Uniforms.CameraViewportRatio = RenderTargetRect[3];
 }
 
 
@@ -105,11 +108,25 @@ function BindEvents(Element)
 	Element.addEventListener('touchcancel', MouseUp, false );
 }
 
+	
+/*
+void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
+{
+	vec2 ViewportUv = mix( vec2(-1,1), vec2(1,-1), MouseUv);
+	vec4 Near4 = CameraToWorldTransform * vec4(ViewportUv,0,1);
+	vec4 Far4 = CameraToWorldTransform * vec4(ViewportUv,1,1);
+	vec3 Near3 = Near4.xyz / Near4.w;
+	vec3 Far3 = Far4.xyz / Far4.w;
+	RayPos = Near3;
+	RayDir = Far3 - Near3;
+	RayDir = normalize(RayDir);
+}*/
 
 function UpdateInteraction(Time)
 {
-	GameState.UserHoverHandle = Time % 1 < 0.5;
-	GameState.MouseUv
+	//GameState.UserHoverHandle = Time % 1 < 0.5;
+
+	
 }
 
 async function Loop(Canvas)
@@ -137,6 +154,12 @@ async function Loop(Canvas)
 		Object.assign(Uniforms,GameState);
 		
 		Context.Draw(Cube,Shader,Uniforms);
+		let Pixels = Context.ReadPixels();
+		Pixels = Pixels.slice(0,4);
+		//if ( Pixels.some( v => v!=0 ) )
+		//	console.log(`0,0 = ${Pixels}`);
+		const Mat_Handle = 3;
+		GameState.UserHoverHandle = Pixels[0] == Mat_Handle;
 	}
 }
 

@@ -1,6 +1,7 @@
 export default `
 precision highp float;
 varying vec3 WorldPosition;
+varying vec4 OutputProjectionPosition;
 uniform mat4 CameraToWorldTransform;
 uniform vec3 WorldLightPosition;
 uniform float FloorY;
@@ -12,18 +13,23 @@ uniform bool UserHoverHandle;
 uniform vec2 MouseUv;
 
 #define Mat_None	0.0
-#define Mat_Floor	0.1
-#define Mat_Toaster	0.2
-#define Mat_Handle	0.25
-#define Mat_Bread	0.3
-#define Mat_Red		0.4
-#define Mat_Blue	0.5
+#define Mat_Floor	1.0
+#define Mat_Toaster	2.0
+#define Mat_Handle	3.0
+#define Mat_Bread	4.0
+#define Mat_Red		5.0
+#define Mat_Blue	6.0
 #define dm_t	vec2	//	distance material
 #define dmh_t	vec3	//	distance material heat
 
+uniform float CameraViewportRatio;
+
 void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
 {
-	vec2 ViewportUv = mix( vec2(-1,1), vec2(1,-1), MouseUv);
+	//	gr: need the viewport used in the matrix... can we extract it?
+	float Halfw = (1.0/CameraViewportRatio)/2.0;
+	float Halfh = 1.0 / 2.0;
+	vec2 ViewportUv = mix( vec2(-Halfw,Halfh), vec2(Halfw,-Halfh), MouseUv);
 	vec4 Near4 = CameraToWorldTransform * vec4(ViewportUv,0,1);
 	vec4 Far4 = CameraToWorldTransform * vec4(ViewportUv,1,1);
 	vec3 Near3 = Near4.xyz / Near4.w;
@@ -162,7 +168,7 @@ dm_t Map(vec3 Position,vec3 Dir)
 	dm_t d = dm_t(999.0,Mat_None);
 	//d = Closest( d, sdSphere( Position, vec4(0,0,0,0.10) );
 	
-	d = Closest( d, dm_t( sdMouseRay(Position), Mat_Red ) );
+	//d = Closest( d, dm_t( sdMouseRay(Position), Mat_Red ) );
 	d = Closest( d, dm_t( sdBackWall(Position), Mat_Floor ) );
 	//d = Closest( d, dm_t( sdFloor(Position,Dir).x, Mat_Blue ) );
 	d = Closest( d, dm_t( sdToaster(Position), Mat_Toaster ) );
@@ -316,6 +322,7 @@ vec4 GetToasterColour(vec3 WorldPos,vec3 WorldNormal)
 {
 	vec3 Colour = ToasterColour;
 	float DistanceToMouse = sdMouseRay(WorldPos);
+	DistanceToMouse = 999.0;
 	if ( DistanceToMouse <= 0.1 )
 		Colour = PinkColour;
 		
@@ -373,12 +380,38 @@ float HardShadow(vec3 Position,vec3 Direction)
 	*/
 }
 
+//	output data at 0,0
+vec2 GetScreenUv()
+{
+	vec2 uv = OutputProjectionPosition.xy / OutputProjectionPosition.zz;
+	//uv *= OutputProjectionPosition.ww;
+	uv += 1.0;
+	uv /= 2.0;
+	return uv;
+}
+
+#define UV0	(GetScreenUv().x<=0.000&&GetScreenUv().y<=0.00)
+
 void main()
 {
 	vec3 RayPos,RayDir;
-	GetWorldRay( RayPos, RayDir );
+	if ( UV0 )
+		GetMouseRay( RayPos, RayDir );
+	else
+		GetWorldRay( RayPos, RayDir );
 	vec4 HitDistance = GetRayCastDistanceHeatMaterial(RayPos,RayDir).xzzy;
 	vec3 HitPos = RayPos + (RayDir*HitDistance.x); 
+	
+	if ( UV0 )
+	{
+		//	output is bytes... can we improve this?
+		float Mat = HitDistance.w/255.0;
+		gl_FragColor = vec4(Mat,Mat,Mat,Mat);
+		//gl_FragColor = vec4(HitPos,HitDistance.w/255.0);
+		//gl_FragColor = vec4(1,2,3,4);
+		return;
+	}
+	
 	vec3 Normal = calcNormal(HitPos);
 
 	vec4 Colour = GetMaterialColour(HitDistance.w,HitPos,Normal);
@@ -386,7 +419,7 @@ void main()
 	//Colour.xyz *= mix(1.0,0.7,HitDistance.y);	//	ao from heat
 
 	
-	float Shadowk = 3.00;
+	float Shadowk = 2.50;
 	vec3 ShadowRayPos = HitPos+Normal*0.1;
 	vec3 ShadowRayDir = normalize(WorldLightPosition-HitPos);
 	float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );

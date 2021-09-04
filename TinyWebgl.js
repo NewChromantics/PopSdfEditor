@@ -285,7 +285,8 @@ export default class GlContext_t
 	constructor(Canvas)
 	{
 		this.Canvas = Canvas;
-		this.Context = Canvas.getContext('webgl2');	//	if webgl we need to enable VAO
+		const Options = {preserveDrawingBuffer: true};	//	allow readpixels on screen
+		this.Context = Canvas.getContext('webgl2',Options);	//	if webgl we need to enable VAO
 		this.InitFrame();
 	}
 	
@@ -316,6 +317,7 @@ export default class GlContext_t
 	GetScreenRect()
 	{
 		return this.GetCanvasDomRect(this.Canvas);
+		//return [0,0,this.Canvas.width,this.Canvas.height];
 	}
 	
 	GetCanvasDomRect(Element)
@@ -392,4 +394,14 @@ export default class GlContext_t
 		gl.drawArrays( Geo.PrimitiveType, 0, Geo.IndexCount );
 	}
 	
+	ReadPixels()
+	{
+		const gl = this.Context;
+		const Rect = this.GetScreenRect();
+		//const Pixels = new Float32Array(Rect[2]*Rect[3]*4);			
+		//gl.readPixels(...Rect,gl.RGBA,gl.FLOAT,Pixels);
+		const Pixels = new Uint8Array(Rect[2]*Rect[3]*4);			
+		gl.readPixels(...Rect,gl.RGBA,gl.UNSIGNED_BYTE,Pixels);
+		return Pixels;		
+	}
 }
