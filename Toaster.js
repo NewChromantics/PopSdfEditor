@@ -45,20 +45,86 @@ function GetCameraUniforms(Uniforms,ScreenRect)
 }
 
 
+const GameState = {};
+GameState.UserHoverHandle = false;
+GameState.MouseUv = [0.5,0.5];
+
+
+function Range(Min,Max,Value)
+{
+	return (Value-Min) / (Max-Min);
+}
+
+function GetMouseUv(Event)
+{
+	Element = Event.currentTarget;
+	const Rect = Element.getBoundingClientRect();
+	const ClientX = Event.pageX || Event.clientX;
+	const ClientY = Event.pageY || Event.clientY;
+	const u = Range( Rect.left, Rect.right, ClientX ); 
+	const v = Range( Rect.top, Rect.bottom, ClientY ); 
+	return [u,v];
+}
+
+function MouseMove(Event)
+{
+	let uv = GetMouseUv(Event);
+	//console.log(`MouseMove ${uv}`);
+	GameState.MouseUv = uv;
+}
+
+function MouseDown(Event)
+{
+	let uv = GetMouseUv(Event);
+	console.log(`MouseDown ${uv}`);
+}
+
+function MouseUp(Event)
+{
+	let uv = GetMouseUv(Event);
+	console.log(`Mouseup ${uv}`);
+}
+
+function MouseWheel(Event)
+{
+	let uv = GetMouseUv(Event);
+	console.log(`MouseWheel ${uv}`);
+}
+
+function BindEvents(Element)
+{
+	Element.addEventListener('mousemove', MouseMove );
+	Element.addEventListener('wheel', MouseWheel, false );
+	//Element.addEventListener('contextmenu', ContextMenu, false );
+	Element.addEventListener('mousedown', MouseDown, false );
+	Element.addEventListener('mouseup', MouseUp, false );
+	
+	Element.addEventListener('touchmove', MouseMove );
+	Element.addEventListener('touchstart', MouseDown, false );
+	Element.addEventListener('touchend', MouseUp, false );
+	Element.addEventListener('touchcancel', MouseUp, false );
+}
+
+
+function UpdateInteraction(Time)
+{
+	GameState.UserHoverHandle = Time % 1 < 0.5;
+	GameState.MouseUv
+}
 
 async function Loop(Canvas)
 {
+	BindEvents(Canvas);
 	const Context = new GlContext_t(Canvas);
 	const Shader = Context.CreateShader( VertSource, FragSource );
 	const Cube = Context.CreateCubeGeo( Shader );
 	while(true)
 	{
 		let Time = await Context.WaitForFrame();
+		UpdateInteraction(Time);
 		Time = Time % 1;
 		Context.Clear([1,Time,0,1]);
 		const Uniforms = {};
-		Uniforms.WorldToCameraTransform = [1,0,0,0,	0,1,0,0,	0,0,1,0,	0,0,0,1];
-		Uniforms.CameraProjectionTransform = [1,0,0,0,	0,1,0,0,	0,0,1,0,	0,0,0,1];
 		GetCameraUniforms(Uniforms,Context.GetScreenRect());
 		//	bounding box
 		let w=0.40,h=0.20,d=0.20;	//	toaster cm
@@ -68,6 +134,8 @@ async function Loop(Canvas)
 		Uniforms.WorldMin = [-w,-h,-d];
 		Uniforms.WorldMax = [w,h,d];
 		Uniforms.WorldLightPosition = WorldLightPosition;
+		Object.assign(Uniforms,GameState);
+		
 		Context.Draw(Cube,Shader,Uniforms);
 	}
 }

@@ -8,14 +8,30 @@ uniform float WallZ;
 #define FarZ	20.0
 #define WorldUp	vec3(0,1,0)
 
+uniform bool UserHoverHandle;
+uniform vec2 MouseUv;
+
 #define Mat_None	0.0
 #define Mat_Floor	0.1
 #define Mat_Toaster	0.2
+#define Mat_Handle	0.25
 #define Mat_Bread	0.3
 #define Mat_Red		0.4
 #define Mat_Blue	0.5
 #define dm_t	vec2	//	distance material
 #define dmh_t	vec3	//	distance material heat
+
+void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
+{
+	vec2 ViewportUv = mix( vec2(-1,1), vec2(1,-1), MouseUv);
+	vec4 Near4 = CameraToWorldTransform * vec4(ViewportUv,0,1);
+	vec4 Far4 = CameraToWorldTransform * vec4(ViewportUv,1,1);
+	vec3 Near3 = Near4.xyz / Near4.w;
+	vec3 Far3 = Far4.xyz / Far4.w;
+	RayPos = Near3;
+	RayDir = Far3 - Near3;
+	RayDir = normalize(RayDir);
+}
 
 void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
 {
@@ -80,6 +96,20 @@ float sdBox( vec3 p, vec3 c, vec3 b )
 	vec3 q = abs(p) - b;
 	return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length( pa - ba*h ) - r;
+}
+
+float sdMouseRay(vec3 Position)
+{
+	vec3 MousePos,MouseDir;
+	GetMouseRay( MousePos, MouseDir );
+	return sdCapsule( Position, MousePos, MousePos+MouseDir*1.0, 0.01 );
+}
+
 
 #define ToasterSize	vec3( 0.4, 0.2, 0.2 )
 #define HoleSize	vec3( ToasterSize.x * 0.9, 1.0, 0.06 )
@@ -87,6 +117,7 @@ float sdBox( vec3 p, vec3 c, vec3 b )
 #define ToastPos1	(vec3(0,0.09,0.05)+ToasterPos)
 #define ToasterPos	vec3(0,0,0)//vec3(0,-0.20,0)
 #define ShadowMult	0.4
+
 
 float sdToast(vec3 Position,vec3 ToastPosition)
 {
@@ -106,7 +137,11 @@ float sdToaster(vec3 Position)
 	float Hole = min(Hole1,Hole2);
 	Box -= 0.01;
 	Box = opSubtraction( Hole, Box );
-	
+	return Box;
+}
+float sdToasterHandle(vec3 Position)
+{
+	Position -=ToasterPos;
 	vec3 HandleSize = vec3( 0.03,0.02,0.04);
 	float HandleTop = ToasterSize.y / 2.0 * 0.7;
 	float HandleBottom = ToasterSize.y / 2.0 * 0.1;
@@ -114,11 +149,8 @@ float sdToaster(vec3 Position)
 	float HandleY = mix( HandleTop, HandleBottom, HandleTime );
 	vec3 HandlePos = vec3( HandleSize.x+ToasterSize.x/2.0, HandleY, 0 );
 	float Handle = sdBox( Position, HandlePos, HandleSize );
-	
-	Box = opUnion( Box, Handle );
-	return Box;
+	return Handle;
 }
-
 
 dm_t Closest(dm_t a,dm_t b)
 {
@@ -130,10 +162,12 @@ dm_t Map(vec3 Position,vec3 Dir)
 	dm_t d = dm_t(999.0,Mat_None);
 	//d = Closest( d, sdSphere( Position, vec4(0,0,0,0.10) );
 	
-	d = Closest( d, dm_t( sdBackWall(Position), Mat_Floor ) );	//	only need this for calcnormal
-	//d = Closest( d, dm_t( sdFloor(Position,Dir).x, Mat_Blue ) );	//	only need this for calcnormal
-	d = Closest( d, dm_t( sdToaster(Position), Mat_Toaster ) );	//	only need this for calcnormal
-	d = Closest( d, dm_t( sdToast(Position,ToastPos1), Mat_Bread ) );	//	only need this for calcnormal
+	d = Closest( d, dm_t( sdMouseRay(Position), Mat_Red ) );
+	d = Closest( d, dm_t( sdBackWall(Position), Mat_Floor ) );
+	//d = Closest( d, dm_t( sdFloor(Position,Dir).x, Mat_Blue ) );
+	d = Closest( d, dm_t( sdToaster(Position), Mat_Toaster ) );
+	d = Closest( d, dm_t( sdToasterHandle(Position), Mat_Handle ) );
+	d = Closest( d, dm_t( sdToast(Position,ToastPos1), Mat_Bread ) );
 	return d;
 }
 
@@ -157,8 +191,8 @@ vec3 calcNormal(vec3 pos)
 dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 {
 	vec2 FloorTop = sdFloor(RayPos,RayDir);
-	float DidHitFloor = FloorTop.y;
-	//float DidHitFloor = 0.0;
+	//float DidHitFloor = FloorTop.y;
+	float DidHitFloor = 0.0;
 	
 	//	gr: for some reason, this I think is really small and we hit it straight away??
 	//float MaxDistance = mix( FarZ, FloorTop.x, DidHitFloor );
@@ -252,6 +286,7 @@ vec2 rotate(vec2 v, float a) {
 	return m * v;
 }
 
+#define PinkColour		vec3(1,0,1)
 #define FloorWhite		(vec3(171, 205, 237) /vec3(255,255,255))
 #define FloorBlue		(vec3(87, 139, 189)/vec3(255,255,255))
 #define ToasterColour	(vec3(255, 163, 64)/vec3(255,255,255))
@@ -269,19 +304,38 @@ vec3 GetFloorColour(vec3 WorldPosition,vec3 WorldNormal)
 	bool y = Chequer.y < 0.5;
 	vec3 Colour = (x==y) ? FloorBlue : FloorWhite;
 	//return GetLitColour(WorldPosition,WorldNormal,Colour,0.0);
+	
+	float DistanceToMouse = sdMouseRay(WorldPosition);
+	if ( DistanceToMouse <= 0.9 )
+		Colour = PinkColour;
+
 	return Colour;	
+}
+
+vec4 GetToasterColour(vec3 WorldPos,vec3 WorldNormal)
+{
+	vec3 Colour = ToasterColour;
+	float DistanceToMouse = sdMouseRay(WorldPos);
+	if ( DistanceToMouse <= 0.1 )
+		Colour = PinkColour;
+		
+	return GetLitColour(WorldPos,WorldNormal,Colour,ToasterSpecular);
 }
 
 
 vec4 GetMaterialColour(float Material,vec3 WorldPos,vec3 WorldNormal)
 {
 	if ( Material == Mat_Floor )	return vec4(GetFloorColour(WorldPos,WorldNormal),1.0);
-	if ( Material == Mat_Toaster )	return GetLitColour(WorldPos,WorldNormal,ToasterColour,ToasterSpecular);
+	if ( Material == Mat_Toaster )	return GetToasterColour(WorldPos,WorldNormal);
 	if ( Material == Mat_Bread )	return GetLitColour(WorldPos,WorldNormal,BreadColour,BreadSpecular);
 	if ( Material == Mat_Red )		return vec4(1,0,0,1);
 	if ( Material == Mat_Blue )		return vec4(0,0,1,1);
-	//if ( Material == Mat_None )	
-	return vec4(0,0,0,0);
+	if ( Material == Mat_None )		return vec4(0,0,0,0);
+
+	if ( !UserHoverHandle )
+		if ( Material == Mat_Handle )	return GetLitColour(WorldPos,WorldNormal,ToasterColour,ToasterSpecular);
+	
+	return GetLitColour(WorldPos,WorldNormal,PinkColour,1.0);
 }
 
 
