@@ -1,1 +1,24 @@
-<html><body></body></html>
+<html>
+<head>
+<style>
+body
+{
+	display:	flex;
+	margin:		0px;
+	background:	red;
+}
+canvas
+{
+	flex-grow:1;
+	background:	black;
+}
+</style>
+</head>
+<body>
+<canvas id=C>
+<script type=module>
+import Loop from './Toaster.js'
+Loop(C);
+</script>
+</body>
+</html>
