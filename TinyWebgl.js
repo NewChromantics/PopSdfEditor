@@ -1,61 +1,45 @@
 
-export function CreateCubeGeometry(Min=-1,Max=1)
+//	.Name .Size .Data
+export function CreateCubeTrianglePositions(Name,Min=-1,Max=1)
 {
-	let PositionData = [];
-	let UvData = [];
-	
-	let AddTriangle = function(a,b,c)
-	{
-		PositionData.push( ...a.slice(0,3) );
-		PositionData.push( ...b.slice(0,3) );
-		PositionData.push( ...c.slice(0,3) );
-		UvData.push( ...a.slice(3,5) );
-		UvData.push( ...b.slice(3,5) );
-		UvData.push( ...c.slice(3,5) );
-	}
-	
 	//	top left near bottom right far
-	let tln = [Min,Min,Min,		0,0];
-	let trn = [Max,Min,Min,		1,0];
-	let brn = [Max,Max,Min,		1,1];
-	let bln = [Min,Max,Min,		0,1];
-	let tlf = [Min,Min,Max,		0,0];
-	let trf = [Max,Min,Max,		1,0];
-	let brf = [Max,Max,Max,		1,1];
-	let blf = [Min,Max,Max,		0,1];
+	let tln = [Min,Min,Min];
+	let trn = [Max,Min,Min];
+	let brn = [Max,Max,Min];
+	let bln = [Min,Max,Min];
+	let tlf = [Min,Min,Max];
+	let trf = [Max,Min,Max];
+	let brf = [Max,Max,Max];
+	let blf = [Min,Max,Max];
 	
+	let PositionData = new Float32Array(
+	[
+		//	near
+		tln, trn, brn,
+		brn, bln, tln,
+		//	far
+		trf, tlf, blf,
+		blf, brf, trf,
+		//	top
+		tln, tlf, trf,
+		trf, trn, tln,
+		//	bottom
+		bln, blf, brf,
+		brf, brn, bln,
 	
-	//	near
-	AddTriangle( tln, trn, brn );
-	AddTriangle( brn, bln, tln );
-	//	far
-	AddTriangle( trf, tlf, blf );
-	AddTriangle( blf, brf, trf );
+		//	left
+		tlf, tln, bln,
+		bln, blf, tlf,
+		//	right
+		trn, trf, brf,
+		brf, brn, trn,
+	].flat());
 	
-	//	top
-	AddTriangle( tln, tlf, trf );
-	AddTriangle( trf, trn, tln );
-	//	bottom
-	AddTriangle( bln, blf, brf );
-	AddTriangle( brf, brn, bln );
-	
-	//	left
-	AddTriangle( tlf, tln, bln );
-	AddTriangle( bln, blf, tlf );
-	//	right
-	AddTriangle( trn, trf, brf );
-	AddTriangle( brf, brn, trn );
-	
-	const Attributes = {};
-	Attributes.LocalPosition = {};
-	Attributes.LocalPosition.Size = 3;
-	Attributes.LocalPosition.Data = new Float32Array(PositionData);
-
-	Attributes.LocalUv = {};
-	Attributes.LocalUv.Size = 2;
-	Attributes.LocalUv.Data = new Float32Array(UvData);
-	
-	return Attributes;
+	const Attribute = {};
+	Attribute.Name = Name;
+	Attribute.Size = 3;
+	Attribute.Data = PositionData;
+	return Attribute;
 }
 
 class Shader_t
@@ -384,9 +368,8 @@ export default class GlContext_t
 	
 	CreateCubeGeo(Shader)
 	{
-		const Cube = CreateCubeGeometry(0,1);
-		Cube.LocalPosition.Name = 'LocalPosition';
-		return new Geometry_t( Cube.LocalPosition, Shader, this.Context );
+		const Cube = CreateCubeTrianglePositions('LocalPosition',0,1);
+		return new Geometry_t( Cube, Shader, this.Context );
 	}
 	
 	CreateShader(VertSource,FragSource)
