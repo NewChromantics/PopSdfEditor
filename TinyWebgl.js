@@ -329,6 +329,11 @@ export default class GlContext_t
 		
 	}
 	
+	GetScreenRect()
+	{
+		return this.GetCanvasDomRect(this.Canvas);
+	}
+	
 	GetCanvasDomRect(Element)
 	{
 		//	first see if WE have our own rect
@@ -370,10 +375,11 @@ export default class GlContext_t
 	
 	Clear(rgba)
 	{
-		//this.UpdateCanvasSize();
+		this.UpdateCanvasSize();
 		const gl = this.Context;
 		gl.clearColor( ...rgba );
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		gl.viewport(0,0,this.Canvas.width,this.Canvas.height);
 	}
 	
 	CreateCubeGeo(Shader)
