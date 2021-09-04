@@ -4,6 +4,7 @@ varying vec3 WorldPosition;
 uniform mat4 CameraToWorldTransform;
 uniform vec3 WorldLightPosition;
 uniform float FloorY;
+uniform float WallZ;
 #define FarZ	20.0
 #define WorldUp	vec3(0,1,0)
 
@@ -11,6 +12,8 @@ uniform float FloorY;
 #define Mat_Floor	0.1
 #define Mat_Toaster	0.2
 #define Mat_Bread	0.3
+#define Mat_Red		0.4
+#define Mat_Blue	0.5
 #define dm_t	vec2	//	distance material
 #define dmh_t	vec3	//	distance material heat
 
@@ -43,21 +46,30 @@ float sdPlane( vec3 p, vec3 n, float h )
 }
 vec2 sdFloor(vec3 Position,vec3 Direction)
 {
-	//return vec2(99.0,0.0);//	should fail to render a floor
+	//return vec2(999.0,0.0);//	should fail to render a floor
 	float d = sdPlane(Position,WorldUp,FloorY);
+	float tp1 = ( Position.y <= FloorY ) ? 1.0 : 0.0;
+	/*
 	float tp1 = (Position.y-FloorY)/Direction.y;
 	if ( tp1 > 0.0 )
 	{
-		//d = tp1;	//	gr: why is floorhit distance wrong?
+		//d = tp1;	//	gr: why is sdPlane distance wrong? but right in map() 
 		tp1 = 1.0;
 	}
 	else
 	{
+	//d = 99.9;
 		tp1 = 0.0;
 	}
+	*/
 	return vec2(d,tp1);
 }
 
+float sdBackWall(vec3 Position)
+{
+	//return vec2(999.0,0.0);//	should fail to render a floor
+	return sdPlane(Position,vec3(0,0,-1),WallZ);
+}
 float sdSphere(vec3 Position,vec4 Sphere)
 {
 	return length( Position-Sphere.xyz )-Sphere.w;
@@ -71,16 +83,18 @@ float sdBox( vec3 p, vec3 c, vec3 b )
 
 #define ToasterSize	vec3( 0.4, 0.2, 0.2 )
 #define HoleSize	vec3( ToasterSize.x * 0.9, 1.0, 0.06 )
-#define ToastSize	vec3( ToasterSize.x * 0.7, 0.16, 0.03 )
+#define ToastSize	vec3( ToasterSize.x * 0.6, 0.16, 0.03 )
 #define ToastPos1	(vec3(0,0.09,0.05)+ToasterPos)
 #define ToasterPos	vec3(0,0,0)//vec3(0,-0.20,0)
-#define ShadowMult	0.3
+#define ShadowMult	0.4
 
 float sdToast(vec3 Position,vec3 ToastPosition)
 {
 	Position -= ToastPosition;
 	float Hole1 = sdBox( Position, vec3(0,0,0), ToastSize/2.0 );
-	Hole1 -= rand(Position)*0.0001;
+	//	bumpy bread!
+	//	swap this for holes
+	Hole1 += rand( floor((Position/ToastSize.xxx)*20.0)/20.0 )*0.0009;
 	return Hole1;
 }
 float sdToaster(vec3 Position)
@@ -115,7 +129,9 @@ dm_t Map(vec3 Position,vec3 Dir)
 {
 	dm_t d = dm_t(999.0,Mat_None);
 	//d = Closest( d, sdSphere( Position, vec4(0,0,0,0.10) );
-	d = Closest( d, dm_t( sdFloor(Position,Dir).x, Mat_Floor ) );	//	only need this for calcnormal
+	
+	d = Closest( d, dm_t( sdBackWall(Position), Mat_Floor ) );	//	only need this for calcnormal
+	//d = Closest( d, dm_t( sdFloor(Position,Dir).x, Mat_Blue ) );	//	only need this for calcnormal
 	d = Closest( d, dm_t( sdToaster(Position), Mat_Toaster ) );	//	only need this for calcnormal
 	d = Closest( d, dm_t( sdToast(Position,ToastPos1), Mat_Bread ) );	//	only need this for calcnormal
 	return d;
@@ -142,18 +158,29 @@ dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 {
 	vec2 FloorTop = sdFloor(RayPos,RayDir);
 	float DidHitFloor = FloorTop.y;
-	float MaxDistance = mix( FarZ, DidHitFloor, FloorTop.x ); 
+	//float DidHitFloor = 0.0;
+	
+	//	gr: for some reason, this I think is really small and we hit it straight away??
+	//float MaxDistance = mix( FarZ, FloorTop.x, DidHitFloor );
+	//
+	float MaxDistance = FarZ;
+	
 	float RayDistance = 0.0;
 	float HitMaterial = mix(Mat_None,Mat_Floor,DidHitFloor);	//	change to material later. 0 = miss
 	float Heat = 0.0;
+	
 	for ( int s=0;	s<30;	s++ )
 	{
 		Heat += 1.0/30.0;
-		vec3 HitPos = RayPos + (RayDir*RayDistance);
-		dm_t StepDistanceMat = Map(HitPos,RayDir);
+		vec3 StepPos = RayPos + (RayDir*RayDistance);
+		dm_t StepDistanceMat = Map(StepPos,RayDir);
 		RayDistance += StepDistanceMat.x;
-		if ( RayDistance > MaxDistance )
+		if ( RayDistance >= MaxDistance )
+		{
+			RayDistance = MaxDistance;
+			HitMaterial = Mat_Red;
 			break;
+		}
 		if ( StepDistanceMat.x < 0.005 )
 		{
 			HitMaterial = StepDistanceMat.y;
@@ -182,6 +209,7 @@ float Range(float Min,float Max,float Value)
 	return (Value-Min) / (Max-Min);
 }
 
+/*
 vec3 GetLitColour(vec3 Position,vec3 Normal,vec3 Colour,float Shiny)
 {
 	float Dot = abs( dot( Normal, normalize(WorldLightPosition-Position) ) );
@@ -195,6 +223,27 @@ vec3 GetLitColour(vec3 Position,vec3 Normal,vec3 Colour,float Shiny)
 	Colour *= Dot;
 	return Colour;
 }
+*/
+vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec3 SeedColour,float Specular)
+{
+	vec3 RumBright = SeedColour;//	rum
+	//vec3 RumMidTone = vec3(181, 81, 4)/vec3(255,255,255);//	rum
+	vec3 RumMidTone = RumBright * vec3(0.7,0.5,0.1);//vec3(181, 81, 4)/vec3(255,255,255);//	rum
+
+	vec3 Colour = RumMidTone;
+		
+	vec3 DirToLight = normalize( WorldLightPosition-WorldPosition );
+	float Dot = dot( DirToLight, Normal );
+
+	Colour = mix( Colour, RumBright, Dot );
+	
+	//	specular
+	float DotMax = mix( 1.0, 0.96, Specular ); 
+	if ( Dot > DotMax )
+		Colour = vec3(1,1,1);
+		
+	return vec4( Colour, 1.0 );
+}
 
 vec2 rotate(vec2 v, float a) {
 	float s = sin(a);
@@ -203,14 +252,18 @@ vec2 rotate(vec2 v, float a) {
 	return m * v;
 }
 
-#define FloorWhite	vec3(0.8,0.8,0.9) 
-#define FloorBlue	vec3(0.6,0.7,0.9)
-#define ToasterColour	vec3(0.86,0.2,0.2)
+#define FloorWhite		(vec3(171, 205, 237) /vec3(255,255,255))
+#define FloorBlue		(vec3(87, 139, 189)/vec3(255,255,255))
+#define ToasterColour	(vec3(255, 163, 64)/vec3(255,255,255))
 #define BreadColour		vec3(0.98, 0.88, 0.72 )
+#define BreadSpecular	0.0
+#define ToasterSpecular	1.0
+
 vec3 GetFloorColour(vec3 WorldPosition,vec3 WorldNormal)
 {
-	float CheqSize = 0.1;
-	vec2 Chequer = rotate( WorldPosition.xz, 0.1);
+	float CheqSize = 0.4;
+	//vec2 Chequer = rotate( WorldPosition.xz, 0.1);
+	vec2 Chequer = rotate( WorldPosition.xy, 0.4);
 	Chequer = mod( Chequer, CheqSize ) / CheqSize;
 	bool x = Chequer.x < 0.5;
 	bool y = Chequer.y < 0.5;
@@ -219,11 +272,14 @@ vec3 GetFloorColour(vec3 WorldPosition,vec3 WorldNormal)
 	return Colour;	
 }
 
+
 vec4 GetMaterialColour(float Material,vec3 WorldPos,vec3 WorldNormal)
 {
 	if ( Material == Mat_Floor )	return vec4(GetFloorColour(WorldPos,WorldNormal),1.0);
-	if ( Material == Mat_Toaster )	return vec4(GetLitColour(WorldPos,WorldNormal,ToasterColour,1.0),1.0);
-	if ( Material == Mat_Bread )	return vec4(GetLitColour(WorldPos,WorldNormal,BreadColour,0.0),1.0);
+	if ( Material == Mat_Toaster )	return GetLitColour(WorldPos,WorldNormal,ToasterColour,ToasterSpecular);
+	if ( Material == Mat_Bread )	return GetLitColour(WorldPos,WorldNormal,BreadColour,BreadSpecular);
+	if ( Material == Mat_Red )		return vec4(1,0,0,1);
+	if ( Material == Mat_Blue )		return vec4(0,0,1,1);
 	//if ( Material == Mat_None )	
 	return vec4(0,0,0,0);
 }
@@ -276,12 +332,12 @@ void main()
 	//Colour.xyz *= mix(1.0,0.7,HitDistance.y);	//	ao from heat
 
 	
-	float Shadowk = 1.90;
+	float Shadowk = 3.00;
 	vec3 ShadowRayPos = HitPos+Normal*0.1;
 	vec3 ShadowRayDir = normalize(WorldLightPosition-HitPos);
 	float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );
 	//float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
-	Colour.xyz *= Shadow;
+	Colour.xyz *= mix( ShadowMult, 1.0, Shadow );//Shadow * ShadowMult;
 
 	gl_FragColor = Colour;
 	//if ( Colour.w == 0.0 )	discard;

@@ -30,10 +30,10 @@ void main()
 
 
 const Camera = new Camera_t();
-Camera.Position = [ 0,0.25,-0.70 ];
+Camera.Position = [ 0,0.30,-0.70 ];
 Camera.LookAt = [ 0,0,0 ];
 Camera.FovVertical = 70;
-const WorldLightPosition = [-0.9,2,-0.8];
+const WorldLightPosition = [-0.9,2.4,-1.8];
 		
 function GetCameraUniforms(Uniforms,ScreenRect)
 {
@@ -58,10 +58,9 @@ async function Loop(Canvas)
 		Uniforms.WorldToCameraTransform = [1,0,0,0,	0,1,0,0,	0,0,1,0,	0,0,0,1];
 		Uniforms.CameraProjectionTransform = [1,0,0,0,	0,1,0,0,	0,0,1,0,	0,0,0,1];
 		GetCameraUniforms(Uniforms,Context.GetScreenRect());
-		//	bounding box
-		let w=0.40,h=0.20,d=0.20;	//	toaster cm
-		w=h=d=1;
+		let w=h=d=1;//	rendering bounding box
 		Uniforms.FloorY = 0.30;
+		Uniforms.WallZ = 1.30;
 		Uniforms.WorldMin = [-w,-h,-d];
 		Uniforms.WorldMax = [w,h,d];
 		Uniforms.WorldLightPosition = WorldLightPosition;
