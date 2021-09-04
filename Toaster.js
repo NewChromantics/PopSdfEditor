@@ -30,7 +30,7 @@ void main()
 
 
 const Camera = new Camera_t();
-Camera.Position = [ 0,0.15,-0.60 ];
+Camera.Position = [ 0,0.25,-0.70 ];
 Camera.LookAt = [ 0,0,0 ];
 Camera.FovVertical = 70;
 const WorldLightPosition = [-0.9,2,-0.8];

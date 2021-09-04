@@ -11,7 +11,8 @@ uniform float FloorY;
 #define Mat_Floor	0.1
 #define Mat_Toaster	0.2
 #define Mat_Bread	0.3
-#define dm_t	vec2	//	distancematerial
+#define dm_t	vec2	//	distance material
+#define dmh_t	vec3	//	distance material heat
 
 void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
 {
@@ -24,6 +25,10 @@ void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
 	RayDir = normalize(RayDir);
 }
 
+float rand(vec3 co)
+{
+	return fract(sin(dot(co, vec3(12.9898, 78.233, 54.53))) * 43758.5453);
+}
 
 float opUnion( float d1, float d2 ) { return min(d1,d2); }
 
@@ -38,6 +43,7 @@ float sdPlane( vec3 p, vec3 n, float h )
 }
 vec2 sdFloor(vec3 Position,vec3 Direction)
 {
+	//return vec2(99.0,0.0);//	should fail to render a floor
 	float d = sdPlane(Position,WorldUp,FloorY);
 	float tp1 = (Position.y-FloorY)/Direction.y;
 	if ( tp1 > 0.0 )
@@ -67,12 +73,14 @@ float sdBox( vec3 p, vec3 c, vec3 b )
 #define HoleSize	vec3( ToasterSize.x * 0.9, 1.0, 0.06 )
 #define ToastSize	vec3( ToasterSize.x * 0.7, 0.16, 0.03 )
 #define ToastPos1	(vec3(0,0.09,0.05)+ToasterPos)
-#define ToasterPos	vec3(0,-0.20,0)
+#define ToasterPos	vec3(0,0,0)//vec3(0,-0.20,0)
+#define ShadowMult	0.3
 
 float sdToast(vec3 Position,vec3 ToastPosition)
 {
 	Position -= ToastPosition;
 	float Hole1 = sdBox( Position, vec3(0,0,0), ToastSize/2.0 );
+	Hole1 -= rand(Position)*0.0001;
 	return Hole1;
 }
 float sdToaster(vec3 Position)
@@ -130,16 +138,17 @@ vec3 calcNormal(vec3 pos)
 					  e.xxx * MapDistance( pos + e.xxx*eps ) );
 }
 
-//	returns distance + hit(later: material)
-dm_t GetRayCastDistanceMaterial(vec3 RayPos,vec3 RayDir)
+dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 {
 	vec2 FloorTop = sdFloor(RayPos,RayDir);
 	float DidHitFloor = FloorTop.y;
 	float MaxDistance = mix( FarZ, DidHitFloor, FloorTop.x ); 
 	float RayDistance = 0.0;
 	float HitMaterial = mix(Mat_None,Mat_Floor,DidHitFloor);	//	change to material later. 0 = miss
+	float Heat = 0.0;
 	for ( int s=0;	s<30;	s++ )
 	{
+		Heat += 1.0/30.0;
 		vec3 HitPos = RayPos + (RayDir*RayDistance);
 		dm_t StepDistanceMat = Map(HitPos,RayDir);
 		RayDistance += StepDistanceMat.x;
@@ -151,7 +160,7 @@ dm_t GetRayCastDistanceMaterial(vec3 RayPos,vec3 RayDir)
 			break;
 		}
 	}
-	return vec2( RayDistance, HitMaterial );
+	return dmh_t( RayDistance, HitMaterial, Heat );
 }
 
 float ZeroOrOne(float f)
@@ -219,23 +228,61 @@ vec4 GetMaterialColour(float Material,vec3 WorldPos,vec3 WorldNormal)
 	return vec4(0,0,0,0);
 }
 
+
+float softshadow( in vec3 ro, in vec3 rd, float k )
+{
+    float res = 1.0;
+    float ph = 1e20;
+    float t = 0.0;
+    for ( int i=0;	i<10;	i++ )
+    {
+        float h = MapDistance(ro + rd*t);
+        if( h<0.001 )
+            return 0.0;
+        float y = h*h/(2.0*ph);
+        float d = sqrt(h*h-y*y);
+        res = min( res, k*d/max(0.0,t-y) );
+        ph = h;
+        t += h;
+    }
+    return res;
+}
+
+
+float HardShadow(vec3 Position,vec3 Direction)
+{
+	vec4 HitShadow = GetRayCastDistanceHeatMaterial( Position, Direction ).xzzy;
+	return HitShadow.w > 0.0 ? 0.0 : 1.0;
+	//	*= 0 if hit something
+	//Colour.xyz *= mix( 1.0, ShadowMult, ZeroOrOne(HitShadow.w)*(1.0-HitShadow.y) );
+/*
+	//	shadow
+	vec4 HitShadow = GetRayCastDistanceHeatMaterial( HitPos+Normal*0.1, normalize(WorldLightPosition-HitPos) ).xzzy;
+	//	*= 0 if hit something
+	Colour.xyz *= mix( 1.0, ShadowMult, ZeroOrOne(HitShadow.w)*(1.0-HitShadow.y) );
+	*/
+}
+
 void main()
 {
 	vec3 RayPos,RayDir;
 	GetWorldRay( RayPos, RayDir );
-	vec4 HitDistance = GetRayCastDistanceMaterial(RayPos,RayDir).xxxy;
+	vec4 HitDistance = GetRayCastDistanceHeatMaterial(RayPos,RayDir).xzzy;
 	vec3 HitPos = RayPos + (RayDir*HitDistance.x); 
 	vec3 Normal = calcNormal(HitPos);
 
 	vec4 Colour = GetMaterialColour(HitDistance.w,HitPos,Normal);
 		
-	
+	//Colour.xyz *= mix(1.0,0.7,HitDistance.y);	//	ao from heat
 
-	//	shadow
-	vec4 HitShadow = GetRayCastDistanceMaterial( HitPos+Normal*0.1, normalize(WorldLightPosition-HitPos) ).xxxy;
-	//	*= 0 if hit something
-	Colour.xyz *= 1.0 - ZeroOrOne(HitShadow.w);
 	
+	float Shadowk = 1.90;
+	vec3 ShadowRayPos = HitPos+Normal*0.1;
+	vec3 ShadowRayDir = normalize(WorldLightPosition-HitPos);
+	float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );
+	//float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
+	Colour.xyz *= Shadow;
+
 	gl_FragColor = Colour;
 	//if ( Colour.w == 0.0 )	discard;
 }
