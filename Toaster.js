@@ -44,6 +44,8 @@ function GetCameraUniforms(Uniforms,ScreenRect)
 	Uniforms.CameraToWorldTransform = MatrixInverse4x4( Uniforms.WorldToCameraTransform );
 }
 
+
+
 async function Loop(Canvas)
 {
 	const Context = new GlContext_t(Canvas);
@@ -58,7 +60,9 @@ async function Loop(Canvas)
 		Uniforms.WorldToCameraTransform = [1,0,0,0,	0,1,0,0,	0,0,1,0,	0,0,0,1];
 		Uniforms.CameraProjectionTransform = [1,0,0,0,	0,1,0,0,	0,0,1,0,	0,0,0,1];
 		GetCameraUniforms(Uniforms,Context.GetScreenRect());
-		let w=h=d=1;//	rendering bounding box
+		//	bounding box
+		let w=0.40,h=0.20,d=0.20;	//	toaster cm
+		w=h=d=1;
 		Uniforms.FloorY = 0.30;
 		Uniforms.WallZ = 1.30;
 		Uniforms.WorldMin = [-w,-h,-d];
