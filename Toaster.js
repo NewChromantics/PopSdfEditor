@@ -209,14 +209,18 @@ function UpdateInteraction(Time,TimeDelta=1/60)
 	
 	
 	//	+gravity
-	GameState.ToastVelocity += 1;
+	GameState.ToastVelocity += 2;	//	basically m/s
 	//	see if there's force pushing us up (ie, handle has moved up)
 	if ( GameState.ToastPositionTime > GameState.HandleTime )
 	{
 		let Force = GameState.ToastPositionTime - GameState.HandleTime;
+		Force *= 68;
 		console.log(`Force=${Force}`);
-		Force *= 65;
+		//Force = Math.min( Force, 28 );
+		//GameState.ToastVelocity = 0;//	helps with the bounce, but need double-movements from force
 		GameState.ToastVelocity -= Force;
+		//	avoids the velocity=0 below
+		GameState.ToastPositionTime = GameState.HandleTime;
 	}	
 	GameState.ToastPositionTime += GameState.ToastVelocity * TimeDelta;
 	//	clamp/collision
