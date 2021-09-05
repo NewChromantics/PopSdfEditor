@@ -25,6 +25,22 @@ uniform vec2 MouseUv;
 
 uniform vec4 RenderTargetRect;
 
+uniform vec3 ToasterSize;
+#define HoleSize	vec3( ToasterSize.x * 0.9, 1.0, 0.06 )
+#define ToastSize	vec3( 0.16, 0.15, 0.03 )
+#define ToasterPos	vec3(0,0,0)//vec3(0,-0.20,0)
+#define ShadowMult	0.2
+
+uniform vec3 HandleTop;
+uniform vec3 HandleBottom;
+uniform float HandleTime;
+uniform vec3 HandleSize;
+
+#define Hole1Position	vec3(0,0.05,0.05)
+#define Hole2Position	vec3(0,0.05,-0.05)
+
+#define MAX_STEPS	40
+
 void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
 {
 	float CameraViewportRatio = RenderTargetRect.w/RenderTargetRect.z;
@@ -118,39 +134,35 @@ float sdMouseRay(vec3 Position)
 	return sdCapsule( Position, MousePos, MousePos+MouseDir*1.0, 0.01 );
 }
 
-uniform vec3 ToasterSize;
-#define HoleSize	vec3( ToasterSize.x * 0.9, 1.0, 0.06 )
-#define ToastSize	vec3( ToasterSize.x * 0.6, 0.16, 0.03 )
-#define ToastPos1	(vec3(0,0.09,0.05)+ToasterPos)
-#define ToasterPos	vec3(0,0,0)//vec3(0,-0.20,0)
-#define ShadowMult	0.4
 
-
-float sdToast(vec3 Position,vec3 ToastPosition)
+float sdToast(vec3 Position)
 {
-	Position -= ToastPosition;
-	float Hole1 = sdBox( Position, vec3(0,0,0), ToastSize/2.0 );
+	//float Hole1 = sdBox( Position, vec3(0,0,0), ToastSize/2.0 );
+	vec3 ToastPosition = Hole1Position;
+	vec3 HandlePos = mix( HandleTop, HandleBottom, HandleTime );
+	ToastPosition.y = HandlePos.y + (ToastSize.y/2.0);
+	
+	//Position -= ToastPosition;
+	float Distance = sdBox( Position, ToastPosition, ToastSize/2.0 );
+	
 	//	bumpy bread!
 	//	swap this for holes
-	Hole1 += rand( floor((Position/ToastSize.xxx)*20.0)/20.0 )*0.0009;
-	return Hole1;
+	vec3 LocalPosition = Position - ToastPosition;
+	//Distance += rand( floor((LocalPosition/ToastSize.xxx)*20.0)/20.0 )*0.0029;
+	return Distance;
 }
 float sdToaster(vec3 Position)
 {
 	Position -=ToasterPos;
 	float Box = sdBox( Position, vec3(0,0,0), ToasterSize/2.0 );
-	float Hole1 = sdBox( Position, vec3(0,0.05,0.05), HoleSize/2.0 );
-	float Hole2 = sdBox( Position, vec3(0,0.05,-0.05), HoleSize/2.0 );
+	float Hole1 = sdBox( Position, Hole1Position, HoleSize/2.0 );
+	float Hole2 = sdBox( Position, Hole2Position, HoleSize/2.0 );
 	float Hole = min(Hole1,Hole2);
 	Box -= 0.01;
 	Box = opSubtraction( Hole, Box );
 	return Box;
 }
 
-uniform vec3 HandleTop;
-uniform vec3 HandleBottom;
-uniform float HandleTime;
-uniform vec3 HandleSize;
 
 float sdToasterHandle(vec3 Position)
 {
@@ -175,7 +187,7 @@ dm_t Map(vec3 Position,vec3 Dir)
 	//d = Closest( d, dm_t( sdFloor(Position,Dir).x, Mat_Blue ) );
 	d = Closest( d, dm_t( sdToaster(Position), Mat_Toaster ) );
 	d = Closest( d, dm_t( sdToasterHandle(Position), Mat_Handle ) );
-	d = Closest( d, dm_t( sdToast(Position,ToastPos1), Mat_Bread ) );
+	d = Closest( d, dm_t( sdToast(Position), Mat_Bread ) );
 	return d;
 }
 
@@ -211,9 +223,9 @@ dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 	float HitMaterial = mix(Mat_None,Mat_Floor,DidHitFloor);	//	change to material later. 0 = miss
 	float Heat = 0.0;
 	
-	for ( int s=0;	s<30;	s++ )
+	for ( int s=0;	s<MAX_STEPS;	s++ )
 	{
-		Heat += 1.0/30.0;
+		Heat += 1.0/float(MAX_STEPS);
 		vec3 StepPos = RayPos + (RayDir*RayDistance);
 		dm_t StepDistanceMat = Map(StepPos,RayDir);
 		RayDistance += StepDistanceMat.x;
@@ -275,7 +287,7 @@ vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec3 SeedColour,float Specular)
 	vec3 Colour = RumMidTone;
 		
 	vec3 DirToLight = normalize( WorldLightPosition-WorldPosition );
-	float Dot = dot( DirToLight, Normal );
+	float Dot = max(0.0,dot( DirToLight, Normal ));
 
 	Colour = mix( Colour, RumBright, Dot );
 	
@@ -295,12 +307,19 @@ vec2 rotate(vec2 v, float a) {
 }
 
 #define PinkColour		vec3(1,0,1)
-#define FloorWhite		(vec3(171, 205, 237) /vec3(255,255,255))
-#define FloorBlue		(vec3(87, 139, 189)/vec3(255,255,255))
-#define ToasterColour	(vec3(255, 163, 64)/vec3(255,255,255))
-#define BreadColour		vec3(0.98, 0.88, 0.72 )
+#define FloorWhite		(vec3(171, 205, 237)/255.0)
+#define FloorBlue		(vec3(87, 139, 189)/255.0)
+#define ToasterColour	(vec3(235, 64, 52)/255.0)
+//#define ToasterColour	(vec3(245, 240, 215)/255.0)
+//#define ToasterColour	(vec3(50, 168, 168)/255.0)
+
+#define HandleColour	vec3(0.3,0.3,0.3)
+#define BreadStartColour	vec3(0.98, 0.88, 0.72 )
+#define BreadMidColour		(vec3(204, 131, 35)/255.0)
+#define BreadEndColour		vec3(0.30, 0.30, 0.30 )
 #define BreadSpecular	0.0
 #define ToasterSpecular	1.0
+uniform float Cook;
 
 vec3 GetFloorColour(vec3 WorldPosition,vec3 WorldNormal)
 {
@@ -313,9 +332,9 @@ vec3 GetFloorColour(vec3 WorldPosition,vec3 WorldNormal)
 	vec3 Colour = (x==y) ? FloorBlue : FloorWhite;
 	//return GetLitColour(WorldPosition,WorldNormal,Colour,0.0);
 	
-	float DistanceToMouse = sdMouseRay(WorldPosition);
-	if ( DistanceToMouse <= 0.9 )
-		Colour = PinkColour;
+	//float DistanceToMouse = sdMouseRay(WorldPosition);
+	//if ( DistanceToMouse <= 0.9 )
+	//	Colour = PinkColour;
 
 	return Colour;	
 }
@@ -331,18 +350,39 @@ vec4 GetToasterColour(vec3 WorldPos,vec3 WorldNormal)
 	return GetLitColour(WorldPos,WorldNormal,Colour,ToasterSpecular);
 }
 
+vec4 GetBreadColour(vec3 WorldPos,vec3 WorldNormal)
+{
+	vec3 Colour = BreadStartColour;
+	//	get a curve between colours
+	float CookMid = 0.7;
+	
+	if ( Cook < CookMid )
+	{
+		float t = Range(0.0,CookMid,Cook);
+		Colour = mix( BreadStartColour, BreadMidColour, t );
+	}
+	else
+	{
+		float t = Range(CookMid,1.0,Cook);
+		Colour = mix( BreadMidColour, BreadEndColour, t );
+	}
+	
+	return GetLitColour(WorldPos,WorldNormal,Colour,BreadSpecular);
+}
+
 
 vec4 GetMaterialColour(float Material,vec3 WorldPos,vec3 WorldNormal)
 {
 	if ( Material == Mat_Floor )	return vec4(GetFloorColour(WorldPos,WorldNormal),1.0);
 	if ( Material == Mat_Toaster )	return GetToasterColour(WorldPos,WorldNormal);
-	if ( Material == Mat_Bread )	return GetLitColour(WorldPos,WorldNormal,BreadColour,BreadSpecular);
+	if ( Material == Mat_Bread )	return GetBreadColour(WorldPos,WorldNormal);
+	if ( Material == Mat_Handle )	return GetLitColour(WorldPos,WorldNormal,HandleColour,ToasterSpecular);
 	if ( Material == Mat_Red )		return vec4(1,0,0,1);
 	if ( Material == Mat_Blue )		return vec4(0,0,1,1);
 	if ( Material == Mat_None )		return vec4(0,0,0,0);
 
-	if ( !UserHoverHandle )
-		if ( Material == Mat_Handle )	return GetLitColour(WorldPos,WorldNormal,ToasterColour,ToasterSpecular);
+	//if ( !UserHoverHandle )
+	//	if ( Material == Mat_Handle )	return GetLitColour(WorldPos,WorldNormal,ToasterColour,ToasterSpecular);
 	
 	return GetLitColour(WorldPos,WorldNormal,PinkColour,1.0);
 }

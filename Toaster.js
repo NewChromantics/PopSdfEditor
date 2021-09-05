@@ -53,6 +53,11 @@ GameState.MouseUv = [0.5,0.5];
 GameState.MouseButtonsDown = {};	//	key=button value=uv
 GameState.HandleTime = 0;
 GameState.RenderTargetRect = [0,0,1,1];
+GameState.Heat = 0;
+GameState.HeatSpeed = 0.90;
+GameState.Cook = 0;
+const CookSeconds = 14;
+GameState.CookSpeed = 1/CookSeconds;	//	per sec
 
 const GameConstants = {};
 GameConstants.ToasterSize	= [ 0.4,	0.2,		0.2 ];
@@ -97,21 +102,21 @@ function MouseMove(Event)
 function MouseDown(Event)
 {
 	let uv = GetMouseUv(Event);
-	console.log(`MouseDown ${uv}`);
+	//console.log(`MouseDown ${uv}`);
 	GameState.MouseButtonsDown.Left = uv;
 }
 
 function MouseUp(Event)
 {
 	let uv = GetMouseUv(Event);
-	console.log(`Mouseup ${uv}`);
+	//console.log(`Mouseup ${uv}`);
 	delete GameState.MouseButtonsDown.Left;
 }
 
 function MouseWheel(Event)
 {
 	let uv = GetMouseUv(Event);
-	console.log(`MouseWheel ${uv}`);
+	//console.log(`MouseWheel ${uv}`);
 }
 
 function BindEvents(Element)
@@ -182,7 +187,7 @@ function GetUserHandleTime()
 
 
 const Mat_Handle = 3;
-function UpdateInteraction(Time)
+function UpdateInteraction(Time,TimeDelta=1/60)
 {
 	//GameState.UserHoverHandle = GameState.LastHoverMaterial == Mat_Handle;
 	//GameState.UserHoverHandle = Time % 1 < 0.5;
@@ -194,9 +199,24 @@ function UpdateInteraction(Time)
 	GameState.UserHoverHandle = ( HandleTime !== null );
 	if ( HandleTime !== null )
 	{
-		console.log(HandleTime);
 		GameState.HandleTime = HandleTime;
 	}
+	
+	//	update heat
+	if ( GameState.HandleTime >= 1.0 )
+	{
+		GameState.Heat += GameState.HeatSpeed * TimeDelta;
+		GameState.Heat = Math.min( 1, GameState.Heat );
+	}
+	else
+	{
+		GameState.Heat -= GameState.HeatSpeed * TimeDelta;
+		GameState.Heat = Math.max( 0, GameState.Heat );
+	}
+	
+	//	cook bread
+	GameState.Cook += GameState.CookSpeed * GameState.Heat * TimeDelta;
+	GameState.Cook = Math.min( 1, GameState.Cook );
 }
 
 async function Loop(Canvas)

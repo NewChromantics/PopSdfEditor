@@ -316,8 +316,8 @@ export default class GlContext_t
 	
 	GetScreenRect()
 	{
-		return this.GetCanvasDomRect(this.Canvas);
-		//return [0,0,this.Canvas.width,this.Canvas.height];
+		//return this.GetCanvasDomRect(this.Canvas);
+		return [0,0,this.Canvas.width,this.Canvas.height];
 	}
 	
 	GetCanvasDomRect(Element)
@@ -355,6 +355,7 @@ export default class GlContext_t
 	UpdateCanvasSize()
 	{
 		let Rect = this.GetCanvasDomRect(this.Canvas);
+		//if ( this.Canvas.width != Rect[2] )	console.log(`${this.Canvas.width} -> ${Rect}`);
 		this.Canvas.width = Rect[2];
 		this.Canvas.height = Rect[3];
 	}
