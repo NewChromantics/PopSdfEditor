@@ -34,6 +34,7 @@ uniform vec3 ToasterSize;
 uniform vec3 HandleTop;
 uniform vec3 HandleBottom;
 uniform float HandleTime;
+uniform float ToastPositionTime;
 uniform vec3 HandleSize;
 
 #define Hole1Position	vec3(0,0.05,0.05)
@@ -139,7 +140,7 @@ float sdToast(vec3 Position)
 {
 	//float Hole1 = sdBox( Position, vec3(0,0,0), ToastSize/2.0 );
 	vec3 ToastPosition = Hole1Position;
-	vec3 HandlePos = mix( HandleTop, HandleBottom, HandleTime );
+	vec3 HandlePos = mix( HandleTop, HandleBottom, ToastPositionTime );
 	ToastPosition.y = HandlePos.y + (ToastSize.y/2.0);
 	
 	//Position -= ToastPosition;
@@ -147,7 +148,7 @@ float sdToast(vec3 Position)
 	
 	//	bumpy bread!
 	//	swap this for holes
-	vec3 LocalPosition = Position - ToastPosition;
+	//vec3 LocalPosition = Position - ToastPosition;
 	//Distance += rand( floor((LocalPosition/ToastSize.xxx)*20.0)/20.0 )*0.0029;
 	return Distance;
 }

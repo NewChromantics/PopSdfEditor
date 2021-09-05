@@ -52,6 +52,8 @@ GameState.LastHoverMaterial = 0;
 GameState.MouseUv = [0.5,0.5];
 GameState.MouseButtonsDown = {};	//	key=button value=uv
 GameState.HandleTime = 0;
+GameState.ToastPositionTime = 0;
+GameState.ToastVelocity = 0;
 GameState.RenderTargetRect = [0,0,1,1];
 GameState.Heat = 0;
 GameState.HeatSpeed = 0.90;
@@ -192,8 +194,10 @@ function UpdateInteraction(Time,TimeDelta=1/60)
 	//GameState.UserHoverHandle = GameState.LastHoverMaterial == Mat_Handle;
 	//GameState.UserHoverHandle = Time % 1 < 0.5;
 
+	//	spring handle up
 	GameState.HandleTime -= 0.4;
 	GameState.HandleTime = Math.max(0,GameState.HandleTime);
+
 
 	const HandleTime = GetUserHandleTime();
 	GameState.UserHoverHandle = ( HandleTime !== null );
@@ -201,6 +205,30 @@ function UpdateInteraction(Time,TimeDelta=1/60)
 	{
 		GameState.HandleTime = HandleTime;
 	}
+	
+	
+	
+	//	+gravity
+	GameState.ToastVelocity += 1;
+	//	see if there's force pushing us up (ie, handle has moved up)
+	if ( GameState.ToastPositionTime > GameState.HandleTime )
+	{
+		let Force = GameState.ToastPositionTime - GameState.HandleTime;
+		console.log(`Force=${Force}`);
+		Force *= 65;
+		GameState.ToastVelocity -= Force;
+	}	
+	GameState.ToastPositionTime += GameState.ToastVelocity * TimeDelta;
+	//	clamp/collision
+	if ( GameState.ToastPositionTime > GameState.HandleTime )
+	{
+		GameState.ToastPositionTime = GameState.HandleTime;
+		GameState.ToastVelocity = 0;
+	}
+	
+	
+	
+	
 	
 	//	update heat
 	if ( GameState.HandleTime >= 1.0 )
