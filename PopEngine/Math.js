@@ -28,7 +28,7 @@ export function clamp(min,max,Value)
 {
 	return Math.min( Math.max(Value, min), max);
 }
-export const Clamp = Math.clamp;
+export const Clamp = clamp;
 
 export function Clamp01(Value)
 {

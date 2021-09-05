@@ -9,6 +9,7 @@ uniform float WallZ;
 #define FarZ	20.0
 #define WorldUp	vec3(0,1,0)
 
+uniform float TimeNormal;
 uniform bool UserHoverHandle;
 uniform vec2 MouseUv;
 
@@ -22,10 +23,11 @@ uniform vec2 MouseUv;
 #define dm_t	vec2	//	distance material
 #define dmh_t	vec3	//	distance material heat
 
-uniform float CameraViewportRatio;
+uniform vec4 RenderTargetRect;
 
 void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
 {
+	float CameraViewportRatio = RenderTargetRect.w/RenderTargetRect.z;
 	//	gr: need the viewport used in the matrix... can we extract it?
 	float Halfw = (1.0/CameraViewportRatio)/2.0;
 	float Halfh = 1.0 / 2.0;
@@ -116,8 +118,7 @@ float sdMouseRay(vec3 Position)
 	return sdCapsule( Position, MousePos, MousePos+MouseDir*1.0, 0.01 );
 }
 
-
-#define ToasterSize	vec3( 0.4, 0.2, 0.2 )
+uniform vec3 ToasterSize;
 #define HoleSize	vec3( ToasterSize.x * 0.9, 1.0, 0.06 )
 #define ToastSize	vec3( ToasterSize.x * 0.6, 0.16, 0.03 )
 #define ToastPos1	(vec3(0,0.09,0.05)+ToasterPos)
@@ -145,15 +146,16 @@ float sdToaster(vec3 Position)
 	Box = opSubtraction( Hole, Box );
 	return Box;
 }
+
+uniform vec3 HandleTop;
+uniform vec3 HandleBottom;
+uniform float HandleTime;
+uniform vec3 HandleSize;
+
 float sdToasterHandle(vec3 Position)
 {
-	Position -=ToasterPos;
-	vec3 HandleSize = vec3( 0.03,0.02,0.04);
-	float HandleTop = ToasterSize.y / 2.0 * 0.7;
-	float HandleBottom = ToasterSize.y / 2.0 * 0.1;
-	float HandleTime = 1.0;
-	float HandleY = mix( HandleTop, HandleBottom, HandleTime );
-	vec3 HandlePos = vec3( HandleSize.x+ToasterSize.x/2.0, HandleY, 0 );
+	Position -= ToasterPos;
+	vec3 HandlePos = mix( HandleTop, HandleBottom, HandleTime );
 	float Handle = sdBox( Position, HandlePos, HandleSize );
 	return Handle;
 }
@@ -383,14 +385,16 @@ float HardShadow(vec3 Position,vec3 Direction)
 //	output data at 0,0
 vec2 GetScreenUv()
 {
+	//vec3 ndc = gl_Position.xyz / gl_Position.w;
 	vec2 uv = OutputProjectionPosition.xy / OutputProjectionPosition.zz;
+	//vec2 uv = OutputProjectionPosition.xy / OutputProjectionPosition.ww;
 	//uv *= OutputProjectionPosition.ww;
 	uv += 1.0;
 	uv /= 2.0;
 	return uv;
 }
 
-#define UV0	(GetScreenUv().x<=0.000&&GetScreenUv().y<=0.00)
+#define UV0	(GetScreenUv().x<=0.0&&GetScreenUv().y<=0.00)
 
 void main()
 {
