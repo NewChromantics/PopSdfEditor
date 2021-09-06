@@ -11,7 +11,7 @@ export default class Game_t
 		this.MouseUv = [0.5,0.5];
 		this.MouseButtonsDown = {};	//	key=button value=uv
 		this.HandleTime = 0;
-		this.ToastPositionTime = 0;
+		this.ToastPositionTime = -10;	//	fall into toaster at bootup
 		this.ToastVelocity = 0;
 		this.Heat = 0;
 		this.HeatSpeed = 0.90;
@@ -31,6 +31,7 @@ export default class Game_t
 		this.Win_CookMax = 0.8;
 		this.Event_StartedCook = CreatePromise();
 		this.Event_PoppedUp = CreatePromise();
+		this.Event_ToastCollision = CreatePromise();
 	}
 	
 	async GameLoop()
@@ -38,7 +39,13 @@ export default class Game_t
 		await this.Event_StartedCook;
 		//	reset popped up event
 		this.Event_PoppedUp = CreatePromise();
+		
 		await this.Event_PoppedUp;
+		this.Event_ToastCollision = CreatePromise();
+		
+		await this.Event_ToastCollision;
+		//	we want at least frame here!
+		await Yield(100);
 		
 		if ( this.Cook < this.Win_CookMin )
 			return `Still bread! ${this.Cook}`;
@@ -98,6 +105,7 @@ export default class Game_t
 			this.ToastVelocity -= Force;
 			//	avoids the velocity=0 below
 			this.ToastPositionTime = this.HandleTime;
+			this.Event_ToastCollision.Resolve();
 		}	
 		this.ToastPositionTime += this.ToastVelocity * TimeDelta;
 		//	clamp/collision
@@ -105,6 +113,7 @@ export default class Game_t
 		{
 			this.ToastPositionTime = this.HandleTime;
 			this.ToastVelocity = 0;
+			this.Event_ToastCollision.Resolve();
 		}
 		
 		if ( this.HandleTime < 0.5 )
