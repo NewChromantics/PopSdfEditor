@@ -68,34 +68,66 @@ function GetMouseUv(Event)
 	const ClientY = Event.pageY || Event.clientY;
 	const u = Range( Rect.left, Rect.right, ClientX ); 
 	const v = Range( Rect.top, Rect.bottom, ClientY ); 
-	return [u,v];
+	return [u,v,ClientX,ClientY];
+}
+
+
+//	return true to notify we used the input and don't pass onto game
+function HandleMouse(Button,uv,FirstDown)
+{
+	if ( Button != 'Right' )
+		return false;
+
+	//	should just get px from event!	
+	const x = uv[2];
+	const y = uv[3];
+	Camera.OnCameraOrbit( x, y, 0, FirstDown );
+
+	return true;
+}
+
+function HtmlMouseToButton(Button)
+{
+	return ['Left','Middle','Right','Back','Forward'][Button];
 }
 
 function MouseMove(Event)
 {
 	let uv = GetMouseUv(Event);
 	
-	//	update buttons
-	const ButtonMasks = [ 1<<0, 1<<2, 1<<1 ];	//	move button bits do NOT match mouse events
+	//	update all buttons
 	const Buttons = Event.buttons || 0;	//	undefined if touches
-	for ( let i=0;	i<ButtonMasks.length;	i++ )
-		if ( ( Buttons & ButtonMasks[i] ) != 0 )
-			InputState.MouseButtonsDown.Left = uv;
-
+	const ButtonMasks = [ 1<<0, 1<<2, 1<<1 ];	//	move button bits do NOT match mouse events
+	const ButtonsDown = ButtonMasks.map( (Bit,Button) => (Buttons&Bit)?HtmlMouseToButton(Button):null ).filter( b => b!==null );
+	
+	function OnMouseButton(Button)
+	{
+		if ( HandleMouse( Button, uv, false ) )
+			return;
+		InputState.MouseButtonsDown[Button] = uv.slice(0,2);
+	}	
+	ButtonsDown.forEach(OnMouseButton);
 }
 
 function MouseDown(Event)
 {
 	let uv = GetMouseUv(Event);
-	//console.log(`MouseDown ${uv}`);
-	InputState.MouseButtonsDown.Left = uv;
+	const Button = HtmlMouseToButton(Event.button);
+	if ( HandleMouse( Button, uv, true ) )
+	{
+		Event.preventDefault();
+		return;
+	}
+	console.log(`MouseDown ${uv} Button=${Button}`);
+	InputState.MouseButtonsDown[Button] = uv.slice(0,2);
 }
 
 function MouseUp(Event)
 {
 	let uv = GetMouseUv(Event);
 	//console.log(`Mouseup ${uv}`);
-	delete InputState.MouseButtonsDown.Left;
+	const Button = HtmlMouseToButton(Event.button);
+	delete InputState.MouseButtonsDown[Button];
 }
 
 function MouseWheel(Event)
@@ -104,11 +136,18 @@ function MouseWheel(Event)
 	//console.log(`MouseWheel ${uv}`);
 }
 
+function MouseContextMenu(Event)
+{
+	Event.preventDefault();
+	return;
+}
+
+
 function BindEvents(Element)
 {
 	Element.addEventListener('mousemove', MouseMove );
 	Element.addEventListener('wheel', MouseWheel, false );
-	//Element.addEventListener('contextmenu', ContextMenu, false );
+	Element.addEventListener('contextmenu', MouseContextMenu, false );
 	Element.addEventListener('mousedown', MouseDown, false );
 	Element.addEventListener('mouseup', MouseUp, false );
 	
@@ -197,7 +236,7 @@ async function AppLoop(Canvas)
 	{
 		Game = new Game_t();
 		const Result = await Game.GameLoop();
-		window.alert(Result);
+		console.log(Result);
 		Yield(3000);
 		Game = null;
 	}

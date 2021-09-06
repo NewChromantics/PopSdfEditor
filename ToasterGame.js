@@ -11,7 +11,7 @@ export default class Game_t
 		this.MouseUv = [0.5,0.5];
 		this.MouseButtonsDown = {};	//	key=button value=uv
 		this.HandleTime = 0;
-		this.ToastPositionTime = -10;	//	fall into toaster at bootup
+		this.ToastPositionTime = -20;	//	fall into toaster at bootup
 		this.ToastVelocity = 0;
 		this.Heat = 0;
 		this.HeatSpeed = 0.90;
@@ -67,6 +67,11 @@ export default class Game_t
 		{
 			const Intersection = GetRayRayIntersection3(Ray.Start,Ray.Direction,HandleRay.Start,HandleRay.Direction);
 			let Time = Intersection.IntersectionTimeB / HandleTimeLength;
+			if ( isNaN(Time) )
+			{
+				console.log(`nan time: ${Time}`);
+				continue;
+			}
 			Time = Clamp01(Time);
 			HandleTimes.push(Time);
 		}
