@@ -1,8 +1,8 @@
 import GlContext_t from './TinyWebgl.js'
 import FragSource from './ToasterShader.js'
 //	remove these big dependencies!
-import Camera_t from './PopEngine/Camera.js'
-import {MatrixInverse4x4} from './PopEngine/Math.js'
+import Camera_t from './PopEngineCommon/Camera.js'
+import {MatrixInverse4x4} from './PopEngineCommon/Math.js'
 
 import Game_t from './ToasterGame.js'
 import {CreatePromise,Yield} from './TinyWebgl.js'
