@@ -1,3 +1,23 @@
+export function CreatePromise()
+{
+	let Callbacks = {};
+	let PromiseHandler = function(Resolve,Reject)
+	{
+		Callbacks.Resolve = Resolve;
+		Callbacks.Reject = Reject;
+	}
+	let Prom = new Promise(PromiseHandler);
+	Prom.Resolve = Callbacks.Resolve;
+	Prom.Reject = Callbacks.Reject;
+	return Prom;
+}
+
+export async function Yield(Milliseconds)
+{
+	const Promise = CreatePromise();
+	setTimeout( Promise.Resolve, Milliseconds );
+	return Promise;
+}
 
 //	.Name .Size .Data
 export function CreateCubeTrianglePositions(Name,Min=-1,Max=1)
@@ -292,10 +312,9 @@ export default class GlContext_t
 	
 	async WaitForFrame()
 	{
-		let p = {};
-		p.Promise = new Promise( (Resolve,Reject) => { p.Resolve = Resolve; p.Reject = Reject; } );
-		window.requestAnimationFrame( TimeMs => p.Resolve(TimeMs/1000) );
-		return p.Promise;
+		const Prom = CreatePromise();
+		window.requestAnimationFrame( TimeMs => Prom.Resolve(TimeMs/1000) );
+		return Prom;
 	}
 
 	InitFrame()

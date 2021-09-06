@@ -1,4 +1,6 @@
 import {GetRayRayIntersection3,Clamp01} from './PopEngine/Math.js'
+import {CreatePromise,Yield} from './TinyWebgl.js'
+
 
 export default class Game_t
 {
@@ -14,7 +16,7 @@ export default class Game_t
 		this.Heat = 0;
 		this.HeatSpeed = 0.90;
 		this.Cook = 0;
-		const CookSeconds = 14;
+		const CookSeconds = 10;
 		this.CookSpeed = 1/CookSeconds;	//	per sec
 
 		this.ToasterSize	= [ 0.4,	0.2,		0.2 ];
@@ -24,10 +26,25 @@ export default class Game_t
 		this.FloorY = 0.30;
 		this.WallZ = 1.30;
 		this.WorldLightPosition = [-0.9,2.4,-1.8];
+		
+		this.Win_CookMin = 0.6;
+		this.Win_CookMax = 0.8;
+		this.Event_StartedCook = CreatePromise();
+		this.Event_PoppedUp = CreatePromise();
 	}
 	
 	async GameLoop()
 	{
+		await this.Event_StartedCook;
+		//	reset popped up event
+		this.Event_PoppedUp = CreatePromise();
+		await this.Event_PoppedUp;
+		
+		if ( this.Cook < this.Win_CookMin )
+			return `Still bread! ${this.Cook}`;
+		if ( this.Cook > this.Win_CookMax )
+			return `Ya burnt! ${this.Cook}`;
+		return `GOOD TOASTING! ${this.Cook}`;
 	}
 	
 	GetUserHandleTime(InputRays)
@@ -90,15 +107,17 @@ export default class Game_t
 			this.ToastVelocity = 0;
 		}
 		
-		
-		
-		
+		if ( this.HandleTime < 0.5 )
+		{
+			this.Event_PoppedUp.Resolve();
+		}
 		
 		//	update heat
 		if ( this.HandleTime >= 1.0 )
 		{
 			this.Heat += this.HeatSpeed * TimeDelta;
 			this.Heat = Math.min( 1, this.Heat );
+			this.Event_StartedCook.Resolve();
 		}
 		else
 		{

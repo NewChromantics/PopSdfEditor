@@ -5,6 +5,8 @@ import Camera_t from './PopEngine/Camera.js'
 import {MatrixInverse4x4} from './PopEngine/Math.js'
 
 import Game_t from './ToasterGame.js'
+import {CreatePromise,Yield} from './TinyWebgl.js'
+
 
 const VertSource = `
 precision highp float;
@@ -141,26 +143,31 @@ function GetRayFromCameraUv(uv)
 
 
 
-async function Loop(Canvas)
+async function RenderLoop(Canvas,GetGame)
 {
-	let Game = new Game_t();
 	BindEvents(Canvas);
 	const Context = new GlContext_t(Canvas);
 	const Shader = Context.CreateShader( VertSource, FragSource );
 	const Cube = Context.CreateCubeGeo( Shader );
 	while(true)
 	{
+		let Game = GetGame();
+		
 		const TimeDelta = 1/60;
 		let Time = await Context.WaitForFrame();
 		Time = Time % 1;
 		Context.Clear([1,Time,0,1]);
 		
-		Game.Iteration(TimeDelta,GetInputRays());
+		if ( Game )
+			Game.Iteration(TimeDelta,GetInputRays());
 		
 		const Uniforms = {};
 
 		GetCameraUniforms(Uniforms,Context.GetScreenRect());
-		Object.assign(Uniforms,Game.GetUniforms());
+		
+		if ( Game )
+			Object.assign(Uniforms,Game.GetUniforms());
+			
 		//	bounding box
 		let w=0.40,h=0.20,d=0.20;	//	toaster cm
 		w=h=d=1;
@@ -176,5 +183,26 @@ async function Loop(Canvas)
 	}
 }
 
-export default Loop;
+
+async function AppLoop(Canvas)
+{
+	let Game;
+	function GetGame()
+	{
+		return Game;
+	}
+	const RenderThread = RenderLoop(Canvas,GetGame);
+
+	while ( true )
+	{
+		Game = new Game_t();
+		const Result = await Game.GameLoop();
+		window.alert(Result);
+		Yield(3000);
+		Game = null;
+	}
+}
+
+
+export default AppLoop;
 
