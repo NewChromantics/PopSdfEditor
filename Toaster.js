@@ -7,7 +7,7 @@ import {MatrixInverse4x4,Normalise3,Add3,Distance3,GetRayPositionAtTime,GetRayRa
 
 import Pop from './PopEngineCommon/PopEngine.js'
 import {CreatePromise} from './PopEngineCommon/PopApi.js'
-
+import {NormalToRainbow} from './PopEngineCommon/Colour.js'
 
 const VertSource = `
 precision highp float;
@@ -54,37 +54,57 @@ function GetCameraUniforms(Uniforms,ScreenRect)
 
 
 const InputState = {};
-InputState.MouseButtonsDown = {};	//	key=button value=uv
-		
+class InputValue_t
+{
+	constructor(uv,px,Force=1)
+	{
+		this.uv = uv;
+		this.px = px;
+		this.Force = Force;
+	}
+}
+InputState.MouseButtonsDown = {};	//	key=button value=InputValue_t
+
+
 function Range(Min,Max,Value)
 {
 	return (Value-Min) / (Max-Min);
 }
 
-function GetMouseUv(Event)
-{
+function GetMouseValue(Event)
+{	
 	Element = Event.currentTarget;
 	const Rect = Element.getBoundingClientRect();
 	const ClientX = Event.pageX || Event.clientX;
 	const ClientY = Event.pageY || Event.clientY;
 	const u = Range( Rect.left, Rect.right, ClientX ); 
 	const v = Range( Rect.top, Rect.bottom, ClientY ); 
-	return [u,v,ClientX,ClientY];
+	
+	let Input = new InputValue_t();
+	Input.uv = [u,v]; 
+	Input.px = [ClientX,ClientY]; 
+	return Input;
 }
 
 
 //	return true to notify we used the input and don't pass onto game
-function HandleMouse(Button,uv,FirstDown)
+function HandleMouse(Button,InputValue,FirstDown)
 {
-	if ( Button != 'Right' )
-		return false;
+	if ( Button == 'Right' )
+	{
+		//	should just get px from event!	
+		const [x,y] = InputValue.px;
+		Camera.OnCameraOrbit( x, y, 0, FirstDown );
+		return true;
+	}
+	
+	if ( Button == GetWheelButton() )
+	{
+		Camera.OnCameraZoom( -InputValue.Force );
+		return true;
+	}
 
-	//	should just get px from event!	
-	const x = uv[2];
-	const y = uv[3];
-	Camera.OnCameraOrbit( x, y, 0, FirstDown );
-
-	return true;
+	return false;
 }
 
 function HtmlMouseToButton(Button)
@@ -95,10 +115,14 @@ function GetHoverButton()
 {
 	return 'Hover';
 }
+function GetWheelButton()
+{
+	return 'Wheel';
+}
 
 function MouseMove(Event)
 {
-	let uv = GetMouseUv(Event);
+	let Value = GetMouseValue(Event);
 	
 	//	update all buttons
 	const Buttons = Event.buttons || 0;	//	undefined if touches
@@ -110,9 +134,9 @@ function MouseMove(Event)
 	
 	function OnMouseButton(Button)
 	{
-		if ( HandleMouse( Button, uv, false ) )
+		if ( HandleMouse( Button, Value, false ) )
 			return;
-		InputState.MouseButtonsDown[Button] = uv.slice(0,2);
+		InputState.MouseButtonsDown[Button] = Value;
 	}
 	ButtonsDown.forEach(OnMouseButton);
 	
@@ -122,20 +146,20 @@ function MouseDown(Event)
 {
 	delete InputState.MouseButtonsDown[GetHoverButton()];
 
-	let uv = GetMouseUv(Event);
+	let Value = GetMouseValue(Event);
 	const Button = HtmlMouseToButton(Event.button);
-	if ( HandleMouse( Button, uv, true ) )
+	if ( HandleMouse( Button, Value, true ) )
 	{
 		Event.preventDefault();
 		return;
 	}
-	console.log(`MouseDown ${uv} Button=${Button}`);
-	InputState.MouseButtonsDown[Button] = uv.slice(0,2);
+	//console.log(`MouseDown ${uv} Button=${Button}`);
+	InputState.MouseButtonsDown[Button] = Value;
 }
 
 function MouseUp(Event)
 {
-	let uv = GetMouseUv(Event);
+	let Value = GetMouseValue(Event);
 	//console.log(`Mouseup ${uv}`);
 	const Button = HtmlMouseToButton(Event.button);
 	delete InputState.MouseButtonsDown[Button];
@@ -143,8 +167,29 @@ function MouseUp(Event)
 
 function MouseWheel(Event)
 {
-	let uv = GetMouseUv(Event);
+	//	gr should update mouse here?
+	let Value = GetMouseValue(Event);
 	//console.log(`MouseWheel ${uv}`);
+	
+	//	gr: maybe change scale based on
+	//WheelEvent.deltaMode = DOM_DELTA_PIXEL, DOM_DELTA_LINE, DOM_DELTA_PAGE
+	const DeltaScale = 0.01;
+	const WheelDelta = [ Event.deltaX * DeltaScale, Event.deltaY * DeltaScale, Event.deltaZ * DeltaScale ];
+	Value.Force = WheelDelta[1];
+
+	const Button = GetWheelButton();
+
+	if ( HandleMouse( Button, Value, true ) )
+	{
+		Event.preventDefault();
+		return;
+	}
+	
+	//	need to either auto-remove this state once read, or maybe we need an event queue (probably that)
+	InputState.MouseButtonsDown[Button] = Value;
+
+	//	stop scroll
+	Event.preventDefault();
 }
 
 function MouseContextMenu(Event)
@@ -176,7 +221,7 @@ function GetInputRays()
 	
 	for ( let Button of Object.keys(InputState.MouseButtonsDown) )
 	{
-		const uv = InputState.MouseButtonsDown[Button];
+		const uv = InputState.MouseButtonsDown[Button].uv;
 		const Ray = GetRayFromCameraUv(uv);
 		State3[Button] = Ray;
 	}
@@ -214,20 +259,26 @@ class GizmoAxis_t
 		this.SelectedAxisRenderOffset = Offset;
 	}
 	
-	GetUniform4()
+	GetRenderPosition()
 	{
-		let Pos4 = this.Position.slice();
+		let Pos = this.Position.slice();
 		
 		if ( this.SelectedAxis !== null )
 		{
-			Pos4[this.SelectedAxis] += this.SelectedAxisRenderOffset;
+			Pos[this.SelectedAxis] += this.SelectedAxisRenderOffset;
 		}
+		return Pos;
+	}
+	
+	GetUniform4()
+	{
+		let Pos = this.GetRenderPosition();
 		
 		let RenderAxiss = this.SelectedAxis === null ? (1|2|4) : (1<<this.SelectedAxis);
 		//let RenderAxiss = this.SelectedAxis === null ? [1,2,3] : [this.SelectedAxis];
 		//RenderAxiss = RenderAxiss.reduce( (v,Current) => {return Current|(1<<v)}, 0 );
-		Pos4.push( RenderAxiss );
-		return Pos4;
+		Pos.push( RenderAxiss );
+		return Pos;
 	}
 	
 	GetAxisRays(OnlySelected=false)
@@ -381,14 +432,100 @@ class GizmoManager_t
 	}
 }
 
+class Actor_t
+{
+	constructor()
+	{
+		this.Position = [0.1,0.1,0];
+		this.ShapeParam = [0.4];
+		this.Colour = [0,0.5,0.5];
+	}
+}
+
+class SceneManager_t
+{
+	constructor()
+	{
+		this.WorldLightPosition = [-0.9,2.4,-1.8];
+		this.Actors = [ new Actor_t() ];
+	}
+	
+	GetObjectUniforms(GizmoManager)
+	{
+		function ActorPosition(Actor,ActorIndex)
+		{
+			let Position = Actor.Position;
+			if ( ActorIndex == 0 )
+				Position = GizmoManager.Gizmos[0].GetRenderPosition();
+				
+			return [...Position,1];
+		}
+		function ActorMaterial(Actor)
+		{
+			return [...Actor.Colour,0.5];
+		}
+		function ActorShapeParam(Actor)
+		{
+			return [...Actor.ShapeParam,0,0,0,0].slice(0,4);
+		}
+		
+		const Uniforms = {};
+		Uniforms.ObjectPositions = this.Actors.map(ActorPosition);
+		Uniforms.ObjectMaterials = this.Actors.map(ActorMaterial);
+		Uniforms.ObjectShapeParams = this.Actors.map(ActorShapeParam);
+		
+		Uniforms.WorldLightPosition = this.WorldLightPosition;
+		return Uniforms;
+	}
+}
+
 async function RenderLoop(Canvas,GetGame)
 {
 	BindEvents(Canvas);
 	const Context = new GlContext_t(Canvas);
+
 	const GizmoShader = Context.CreateShader( VertSource, GizmoFragSource );
-	const Cube = Context.CreateCubeGeo( GizmoShader );
+	const SceneShader = Context.CreateShader( VertSource, SceneFragSource );
+	const GizmoCube = Context.CreateCubeGeo( GizmoShader );
+	const SceneCube = GizmoCube;
 	
 	const Gizmos = new GizmoManager_t();
+	const Scene = new SceneManager_t();
+	
+	function RenderGizmos()
+	{
+		const Uniforms = {};
+		GetCameraUniforms(Uniforms,Context.GetScreenRect());
+
+		//	bounding box
+		let w=0.40,h=0.20,d=0.20;	//	toaster cm
+		w=h=d=1;
+		Uniforms.WorldMin = [-w,-h,-d];
+		Uniforms.WorldMax = [w,h,d];
+		Object.assign( Uniforms, Gizmos.GetUniforms() );
+		Context.Draw(GizmoCube,GizmoShader,Uniforms);
+
+		//let Pixels = Context.ReadPixels();
+		//Pixels = Pixels.slice(0,4);
+		//GameState.LastHoverMaterial = Pixels[0];
+	}
+	
+	function RenderScene()
+	{
+		const Uniforms = {};
+		GetCameraUniforms(Uniforms,Context.GetScreenRect());
+
+		//	bounding box
+		let w=0.40,h=0.20,d=0.20;	//	toaster cm
+		w=h=d=1;
+		Uniforms.WorldMin = [-w,-h,-d];
+		Uniforms.WorldMax = [w,h,d];
+		Object.assign( Uniforms, Scene.GetObjectUniforms(Gizmos) );
+		Context.Draw(SceneCube,SceneShader,Uniforms);
+	}
+	
+	
+	
 	
 	while(true)
 	{
@@ -396,34 +533,19 @@ async function RenderLoop(Canvas,GetGame)
 		
 		const TimeDelta = 1/60;
 		let Time = await Context.WaitForFrame();
-		Time = Time/20 % 1;
-		Context.Clear([0.5,Time,0,1]);
-		
+
+		//	update
 		if ( Game )
 			Game.Iteration(TimeDelta,GetInputRays());
-		
 		Gizmos.Iteration(GetInputRays());
-		
-		const Uniforms = {};
 
-		GetCameraUniforms(Uniforms,Context.GetScreenRect());
-		
-		if ( Game )
-			Object.assign(Uniforms,Game.GetUniforms());
-			
-		//	bounding box
-		let w=0.40,h=0.20,d=0.20;	//	toaster cm
-		w=h=d=1;
-		Uniforms.WorldMin = [-w,-h,-d];
-		Uniforms.WorldMax = [w,h,d];
-		Uniforms.TimeNormal = Time;
 
-		Object.assign( Uniforms, Gizmos.GetUniforms() );
+		//	render
+		Time = Time/20 % 1;
+		Context.Clear(NormalToRainbow(Time));
 		
-		Context.Draw(Cube,GizmoShader,Uniforms);
-		//let Pixels = Context.ReadPixels();
-		//Pixels = Pixels.slice(0,4);
-		//GameState.LastHoverMaterial = Pixels[0];
+		RenderScene();
+		RenderGizmos();
 	}
 }
 

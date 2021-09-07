@@ -4,43 +4,26 @@ varying vec3 WorldPosition;
 varying vec4 OutputProjectionPosition;
 uniform mat4 CameraToWorldTransform;
 uniform vec3 WorldLightPosition;
-#define FarZ	20.0
 #define WorldUp	vec3(0,1,0)
 
 uniform float TimeNormal;
 
-#define Mat_None	0.0
-#define Mat_ObjectA	1.0
 #define dm_t	vec2	//	distance material
 #define dmh_t	vec3	//	distance material heat
 
-#define ObjectAColour		vec3(1,0,1)
 
-uniform vec4 RenderTargetRect;
+#define Mat_None	0.0
+#define Mat_Object0	1.0
 
-#define MAX_AXISS	1
-uniform vec4 AxisPositions[MAX_AXISS];	//	w = size? 0 dont render
-#define AxisSize	0.1
-#define AxisRadius	(AxisSize*0.001)
+#define PinkColour		vec3(1,0,1)
 
-//	really we should raytrace instead of step
-#define MAX_STEPS	10
+#define ObjectCount	10
+uniform vec4 ObjectMaterials[ObjectCount];
+uniform vec4 ObjectPositions[ObjectCount];
+uniform vec4 ObjectShapeParams[ObjectCount];
 
-void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
-{
-	float CameraViewportRatio = RenderTargetRect.w/RenderTargetRect.z;
-	//	gr: need the viewport used in the matrix... can we extract it?
-	float Halfw = (1.0/CameraViewportRatio)/2.0;
-	float Halfh = 1.0 / 2.0;
-	vec2 ViewportUv = mix( vec2(-Halfw,Halfh), vec2(Halfw,-Halfh), MouseUv);
-	vec4 Near4 = CameraToWorldTransform * vec4(ViewportUv,0,1);
-	vec4 Far4 = CameraToWorldTransform * vec4(ViewportUv,1,1);
-	vec3 Near3 = Near4.xyz / Near4.w;
-	vec3 Far3 = Far4.xyz / Far4.w;
-	RayPos = Near3;
-	RayDir = Far3 - Near3;
-	RayDir = normalize(RayDir);
-}
+#define FarZ		20.0
+#define MAX_STEPS	30
 
 void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
 {
@@ -86,55 +69,25 @@ dm_t Closest(dm_t a,dm_t b)
 	return a.x < b.x ? a : b;
 }
 
-
-dm_t sdAxis(vec3 Position,vec4 Axis)
+dm_t sdObject(vec3 Position,vec4 ObjectPosition,vec4 ObjectShapeParam,int ObjectIndex)
 {
-	vec3 ap = Axis.xyz;
-	float as = AxisSize;
-	vec3 ax = ap + vec3(as,0,0);
-	vec3 ay = ap + vec3(0,as,0);
-	vec3 az = ap + vec3(0,0,as);
-	//	prep for bitwise operators
-	#define RENDER_NONE	0	//	defualt so missing uniforms=0
-	#define RENDER_X	1
-	#define RENDER_Y	2
-	#define RENDER_Z	4
-	#define RENDER_ALL	7
-	int Selected = int(Axis.w);
-	
-	float Includex = Selected==RENDER_X || Selected == RENDER_ALL ? 1.0 : 0.0; 
-	float Includey = Selected==RENDER_Y || Selected == RENDER_ALL ? 1.0 : 0.0; 
-	float Includez = Selected==RENDER_Z || Selected == RENDER_ALL ? 1.0 : 0.0; 
-	
-	dm_t dx = dm_t( sdCapsule( Position, ap, ax, AxisRadius ), Mat_AxisX );
-	dm_t dy = dm_t( sdCapsule( Position, ap, ay, AxisRadius ), Mat_AxisY );
-	dm_t dz = dm_t( sdCapsule( Position, ap, az, AxisRadius ), Mat_AxisZ );
-	
-	dx.x = mix( 9999.0, dx.x, Includex );
-	dy.x = mix( 9999.0, dy.x, Includey );
-	dz.x = mix( 9999.0, dz.x, Includez );
-	
-	dm_t Hit = dx;
-	Hit = Closest( Hit, dy );
-	Hit = Closest( Hit, dz );
-	return Hit;
-}
+	//vec3 ObjectPosition = ObjectPositions[ObjectIndex].xyz;
+	//vec4 ObjectShapeParam = ObjectShapeParams[ObjectIndex];
+	float Material = Mat_Object0 + float(ObjectIndex);
 
-dm_t sdAxiss(vec3 Position)
-{
-	dm_t Hit = dm_t(999.0,Mat_None);
-	for ( int a=0;	a<MAX_AXISS;	a++ )
-	{
-		Hit = Closest( Hit, sdAxis(Position,AxisPositions[a]) );
-	}
-	return Hit;
+	//	todo: param/w needs to specify shape?
+	//	need to think about the tree
+	float Distance = sdSphere( Position, vec4(ObjectPosition.xyz,ObjectShapeParam.x) );
+	
+	return dm_t( Distance, Material );
 }
-
 
 dm_t Map(vec3 Position,vec3 Dir)
 {
 	dm_t d = dm_t(999.0,Mat_None);
-	d = Closest( d, sdAxiss(Position) );
+	
+	for ( int i=0;	i<ObjectCount;	i++ )
+		d = Closest( d, sdObject(Position,ObjectPositions[i],ObjectShapeParams[i],i) );
 	return d;
 }
 
@@ -183,13 +136,6 @@ dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 	return dmh_t( RayDistance, HitMaterial, Heat );
 }
 
-float ZeroOrOne(float f)
-{
-	//	or max(1.0,floor(f+0.0001)) ?
-	//return max( 1.0, f*10000.0);
-	return (f ==0.0) ? 0.0 : 1.0; 
-}
-
 vec3 GetNormalColour(vec3 Normal)
 {
 	Normal += 1.0;
@@ -210,7 +156,7 @@ vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec3 SeedColour,float Specular)
 	vec3 RumMidTone = SeedColour;
 
 	vec3 Colour = RumMidTone;
-		
+
 	vec3 DirToLight = normalize( WorldLightPosition-WorldPosition );
 	float Dot = max(0.0,dot( DirToLight, Normal ));
 
@@ -224,13 +170,28 @@ vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec3 SeedColour,float Specular)
 	return vec4( Colour, 1.0 );
 }
 
+vec4 GetObjectColour(vec3 WorldPosition,vec3 WorldNormal,int ObjectIndex)
+{
+	//	cant index as its dynamic
+	vec4 ObjectMaterial = vec4(PinkColour,1.0);
+	for ( int i=0;	i<ObjectCount;	i++ )
+		if ( i == ObjectIndex )
+			ObjectMaterial = ObjectMaterials[i];
+	//vec4 ObjectMaterial = ObjectMaterials[ObjectIndex];
+	
+	vec3 Rgb = ObjectMaterial.xyz;
+	float Specular = ObjectMaterial.w;
+	
+	return GetLitColour( WorldPosition, WorldNormal, Rgb, Specular );
+}
+
+
 vec4 GetMaterialColour(float Material,vec3 WorldPos,vec3 WorldNormal)
 {
 	if ( Material == Mat_None )		return vec4(0,0,0,0);
-	if ( Material == Mat_AxisX )	return GetLitColour( WorldPos, WorldNormal, AxisColourX, AxisSpecular );
-	if ( Material == Mat_AxisY )	return GetLitColour( WorldPos, WorldNormal, AxisColourY, AxisSpecular );
-	if ( Material == Mat_AxisZ )	return GetLitColour( WorldPos, WorldNormal, AxisColourZ, AxisSpecular );
 
+	if ( Material >= Mat_Object0 )
+		return GetObjectColour( WorldPos, WorldNormal, int(Material-Mat_Object0) );
 	//if ( !UserHoverHandle )
 	//	if ( Material == Mat_Handle )	return GetLitColour(WorldPos,WorldNormal,ToasterColour,ToasterSpecular);
 	
@@ -284,27 +245,13 @@ vec2 GetScreenUv()
 	return uv;
 }
 
-#define UV0	(GetScreenUv().x<=0.0&&GetScreenUv().y<=0.00)
 
 void main()
 {
 	vec3 RayPos,RayDir;
-	if ( UV0 )
-		GetMouseRay( RayPos, RayDir );
-	else
-		GetWorldRay( RayPos, RayDir );
+	GetWorldRay( RayPos, RayDir );
 	vec4 HitDistance = GetRayCastDistanceHeatMaterial(RayPos,RayDir).xzzy;
 	vec3 HitPos = RayPos + (RayDir*HitDistance.x); 
-	
-	if ( UV0 )
-	{
-		//	output is bytes... can we improve this?
-		float Mat = HitDistance.w/255.0;
-		gl_FragColor = vec4(Mat,Mat,Mat,Mat);
-		//gl_FragColor = vec4(HitPos,HitDistance.w/255.0);
-		//gl_FragColor = vec4(1,2,3,4);
-		return;
-	}
 	
 	vec3 Normal = calcNormal(HitPos);
 
