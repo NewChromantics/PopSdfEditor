@@ -1,6 +1,7 @@
 import GlContext_t from './TinyWebgl.js'
 import GizmoFragSource from './GizmoShader.js'
-//	remove these big dependencies!
+import SceneFragSource from './SceneShader.js'
+
 import Camera_t from './PopEngineCommon/Camera.js'
 import {MatrixInverse4x4,Normalise3,Add3,Distance3,GetRayPositionAtTime,GetRayRayIntersection3} from './PopEngineCommon/Math.js'
 
@@ -191,7 +192,8 @@ function GetRayFromCameraUv(uv)
 }
 
 
-class Axis_t
+
+class GizmoAxis_t
 {
 	constructor()
 	{
@@ -306,18 +308,18 @@ class GizmoManager_t
 {
 	constructor()
 	{
-		this.Axiss = [ new Axis_t() ];
+		this.Gizmos = [ new GizmoAxis_t() ];
 		
 		//	button we're using to grab axis
 		this.SelectedButton = null;	
-		this.SelectedAxisIndex = null;
-		this.SelectedAxisTime = null;
+		this.SelectedGizmoIndex = null;
+		this.SelectedGizmoTime = null;	//	grab t (todo: rename from [ray]time to... normal?)
 	}
 	
 	GetUniforms()
 	{
 		const Uniforms = {};
-		Uniforms.AxisPositions = this.Axiss.map( a => a.GetUniform4() ).flat();
+		Uniforms.AxisPositions = this.Gizmos.map( a => a.GetUniform4() ).flat();
 		return Uniforms;
 	}
 	
@@ -329,15 +331,15 @@ class GizmoManager_t
 		if ( this.SelectedButton && !Object.keys(InputRays).includes(this.SelectedButton) )
 		{
 			//	let go
-			const Axis = this.Axiss[this.SelectedAxisIndex]; 
-			Axis.BakeSelectedOffset();
+			const Gizmo = this.Gizmos[this.SelectedGizmoIndex]; 
+			Gizmo.BakeSelectedOffset();
 			//this.SelectedButton = null;
 			//this.SelectedAxisIndex = null;
 		}
 		else if ( this.SelectedButton )
 		{
-			const Axis = this.Axiss[this.SelectedAxisIndex]; 
-			Hit = Axis.GetAxisIntersection(InputRays,false);
+			const Gizmo = this.Gizmos[this.SelectedGizmoIndex]; 
+			Hit = Gizmo.GetAxisIntersection(InputRays,false);
 			//	move axis
 			if ( !Hit )
 			{
@@ -345,16 +347,16 @@ class GizmoManager_t
 			}
 			else
 			{
-				Axis.SetRenderSelectedAxisOffset( Hit.AxisTime - this.SelectedAxisTime );
-				console.log(`Move axis from ${this.SelectedAxisTime} to ${Hit.AxisTime}`);
+				Gizmo.SetRenderSelectedAxisOffset( Hit.AxisTime - this.SelectedGizmoTime );
+				console.log(`Move axis from ${this.SelectedGizmoTime} to ${Hit.AxisTime}`);
 			}
 		}
 		else 
 		{
 			//	new selection
-			for ( let i=0;	i<this.Axiss.length;	i++ )
+			for ( let i=0;	i<this.Gizmos.length;	i++ )
 			{
-				Hit = this.Axiss[i].GetAxisIntersection(InputRays,true);
+				Hit = this.Gizmos[i].GetAxisIntersection(InputRays,true);
 				if ( !Hit )
 					continue;
 					
@@ -362,19 +364,19 @@ class GizmoManager_t
 					continue;
 
 				this.SelectedButton = Hit.Button;
-				this.SelectedAxisIndex = i;
-				this.SelectedAxisTime = Hit.AxisTime;
-				this.Axiss[i].SelectedAxis = Hit.AxisIndex;
+				this.SelectedGizmoIndex = i;
+				this.SelectedGizmoTime = Hit.AxisTime;
+				this.Gizmos[i].SelectedAxis = Hit.AxisIndex;
 			}
 		}
 		
 		if ( !Hit )
 		{
 			this.SelectedButton = null;
-			this.SelectedAxisIndex = null;
-			this.SelectedAxisTime = null;
-			this.Axiss.forEach( a => a.SelectedAxis=null );
-			this.Axiss.forEach( a => a.SelectedAxisRenderOffset=0 );
+			this.SelectedGizmoIndex = null;
+			this.SelectedGizmoTime = null;
+			this.Gizmos.forEach( a => a.SelectedGizmo=null );
+			this.Gizmos.forEach( a => a.SelectedGizmoRenderOffset=0 );
 		}
 	}
 }
@@ -416,7 +418,6 @@ async function RenderLoop(Canvas,GetGame)
 		Uniforms.WorldMax = [w,h,d];
 		Uniforms.TimeNormal = Time;
 
-		Uniforms.AxisPositions = [0,0,0,0.1];
 		Object.assign( Uniforms, Gizmos.GetUniforms() );
 		
 		Context.Draw(Cube,GizmoShader,Uniforms);
