@@ -26,7 +26,7 @@ uniform vec2 MouseUv;
 
 uniform vec4 RenderTargetRect;
 
-#define MAX_AXISS	4
+#define MAX_AXISS	10
 uniform vec4 AxisPositions[MAX_AXISS];	//	w = size? 0 dont render
 #define AxisSize	0.1
 #define AxisRadius	(AxisSize*0.001)

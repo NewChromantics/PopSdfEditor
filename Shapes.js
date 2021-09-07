@@ -57,3 +57,56 @@ export class Sphere_t
 	}
 
 }
+
+export const Operators = {};
+Operators.OR = 'OR';
+Operators.AND = 'AND';
+Operators.NOT = 'NOT';
+
+//	tree of shapes joined with operators
+export class ShapeTree_t
+{
+	constructor()
+	{
+		this.Smooth = 0.1;
+		this.Shapes = [];
+		this.Operator = Operators.OR;
+	}
+
+	GetSdf(Parameters,Position)
+	{
+		if ( !this.Shapes.length )
+			return null;
+		
+		function GetShapeSdf(Shape)
+		{
+			let Pos = Add3( Position, Shape.Offset );
+			let Sdf = Shape.Shape.GetSdf( Parameters, Pos );
+			return Sdf; 
+		}
+		const ShapeSdfs = this.Shapes.map( GetShapeSdf );
+
+		let DistanceVar = Math.floor(Math.random()*9999);
+		DistanceVar = `d_${DistanceVar}`;
+		let Prefix = 
+		`
+		float ${DistanceVar} = ${ShapeSdfs[0]};
+		`;
+		for ( let s=1;	s<ShapeSdfs.length;	s++ )
+		{
+			Prefix += `
+			${DistanceVar} = opSmoothUnion( ${DistanceVar}, ${ShapeSdfs[s]}, ${this.Smooth} );
+			`;
+		}
+		
+		return [Prefix,DistanceVar];
+	}
+	
+	AddShape(Shape,Offset=[0,0,0])
+	{
+		const SubShape = {};
+		SubShape.Shape = Shape;
+		SubShape.Offset = Offset;
+		this.Shapes.push(SubShape);
+	}
+}

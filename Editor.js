@@ -8,7 +8,7 @@ import {MatrixInverse4x4,Normalise3,Add3,Distance3,GetRayPositionAtTime,GetRayRa
 import Pop from './PopEngineCommon/PopEngine.js'
 import {CreatePromise} from './PopEngineCommon/PopApi.js'
 import {NormalToRainbow} from './PopEngineCommon/Colour.js'
-import {Box_t,Line_t,Sphere_t} from './Shapes.js'
+import {Box_t,Line_t,Sphere_t,ShapeTree_t} from './Shapes.js'
 
 const VertSource = `
 precision highp float;
@@ -564,7 +564,20 @@ class SceneManager_t
 		
 			let Sdf = Actor.GetSdf([`Position`],GizmoManager);
 			const Material = `Mat_Object0`;
-			let Source = `d = Closest( d, dm_t(${Sdf},${Material}) );`;
+			
+			//	if GetSdf returns an array, the last line goes in the usual distance code
+			//	the rest is prefix
+			let Prefix = '';
+			if ( Array.isArray(Sdf) )
+			{
+				let Var = Sdf.pop();
+				Prefix = Sdf.join('');
+				Sdf = Var;
+			}
+			
+			let Source = '';
+			Source += Prefix;
+			Source += `d = Closest( d, dm_t(${Sdf},${Material}) );`;
 			return Source;
 		}
 		let Sources = this.Actors.map( ActorToSdf );
@@ -601,14 +614,25 @@ async function RenderLoop(Canvas,GetGame)
 	
 	let Actor1 = Scene.AddActor( new Actor_t('Sphere1') );
 	Actor1.Shape = new Sphere_t(0.1);
+	Actor1.Position[0]+=0.8;
+	
 	let Actor2 = Scene.AddActor( new Actor_t('Sphere2') );
 	Actor2.Shape = new Box_t(0.1,0.2,0.1);
 	Actor2.Colour = [0.5,0.5,0];
 	Actor2.Position[0]+=0.4;
+	
 	let Actor3 = Scene.AddActor( new Actor_t('Sphere3') );
 	Actor3.Shape = new Line_t(0.1,0.2,0.1,0.04);
 	Actor3.Colour = [0.5,0,0.5];
 	Actor3.Position[0]-=0.4;
+
+	let Actor4 = Scene.AddActor( new Actor_t('Tree') );
+	Actor4.Shape = new ShapeTree_t();
+	Actor4.Shape.AddShape( new Box_t(0.1,0.2,0.1) );
+	Actor4.Shape.AddShape( new Line_t(0.1,0.2,0.1,0.04), [0.1,0.1,0.1] );
+	Actor4.Shape.AddShape( new Sphere_t(0.1), [0.0,-0.2,-0.1] );
+	Actor4.Colour = [0.5,0,0.5];
+	Actor4.Position[0] = 0.0;
 
 	
 	async function SceneChangedThread()
