@@ -36,7 +36,7 @@ void main()
 
 
 const Camera = new Camera_t();
-Camera.Position = [ 0,0.30,-0.70 ];
+Camera.Position = [ 0,0.30,-3.90 ];
 Camera.LookAt = [ 0,0,0 ];
 Camera.FovVertical = 70;
 
@@ -240,8 +240,9 @@ function GetRayFromCameraUv(uv)
 
 class GizmoAxis_t
 {
-	constructor()
+	constructor(Name)
 	{
+		this.Name = Name;
 		this.Position = [0,0,0];
 		this.SelectedAxis = null;
 		this.SelectedAxisRenderOffset = 0; 
@@ -329,7 +330,6 @@ class GizmoAxis_t
 			if ( Button == 'Left' )
 			{
 				//console.log(Hit);////console.log(Hit.Distance);
-				console.log(Hit.DistanceFromAxis);
 			}
 			return Hit;
 		}
@@ -359,12 +359,28 @@ class GizmoManager_t
 {
 	constructor()
 	{
-		this.Gizmos = [ new GizmoAxis_t() ];
+		this.Gizmos = [];
 		
 		//	button we're using to grab axis
 		this.SelectedButton = null;	
 		this.SelectedGizmoIndex = null;
 		this.SelectedGizmoTime = null;	//	grab t (todo: rename from [ray]time to... normal?)
+	}
+	
+	//	if initial pos is specified, we create any missing gizmos
+	GetGizmo(Name,InitialPosition=null)
+	{
+		let Gizmo = this.Gizmos.find( g => g.Name==Name );
+		if ( Gizmo )
+			return Gizmo;
+			
+		if ( !InitialPosition )
+			return null;
+			
+		Gizmo = new GizmoAxis_t(Name);
+		Gizmo.Position = InitialPosition.slice(); 
+		this.Gizmos.push(Gizmo);
+		return Gizmo;
 	}
 	
 	GetUniforms()
@@ -399,7 +415,7 @@ class GizmoManager_t
 			else
 			{
 				Gizmo.SetRenderSelectedAxisOffset( Hit.AxisTime - this.SelectedGizmoTime );
-				console.log(`Move axis from ${this.SelectedGizmoTime} to ${Hit.AxisTime}`);
+				//console.log(`Move axis from ${this.SelectedGizmoTime} to ${Hit.AxisTime}`);
 			}
 		}
 		else 
@@ -418,6 +434,7 @@ class GizmoManager_t
 				this.SelectedGizmoIndex = i;
 				this.SelectedGizmoTime = Hit.AxisTime;
 				this.Gizmos[i].SelectedAxis = Hit.AxisIndex;
+				break;
 			}
 		}
 		
@@ -434,11 +451,20 @@ class GizmoManager_t
 
 class Actor_t
 {
-	constructor()
+	constructor(Name)
 	{
+		this.Name = Name;
 		this.Position = [0.1,0.1,0];
 		this.ShapeParam = [0.4];
 		this.Colour = [0,0.5,0.5];
+	}
+	
+	GetRenderPosition(GizmoManager)
+	{
+		const Gizmo = GizmoManager.GetGizmo(this.Name, this.Position );
+		if ( !Gizmo )
+			return this.Position.slice();
+		return Gizmo.GetRenderPosition();
 	}
 }
 
@@ -446,18 +472,24 @@ class SceneManager_t
 {
 	constructor()
 	{
-		this.WorldLightPosition = [-0.9,2.4,-1.8];
-		this.Actors = [ new Actor_t() ];
+		this.WorldLightPosition = [-0.4,1.4,-1.4];
+		this.Actors = [];
+	}
+	
+	GetLightPosition(GizmoManager)
+	{
+		const Gizmo = GizmoManager.GetGizmo('Light', this.WorldLightPosition );
+		if ( Gizmo )
+			return Gizmo.GetRenderPosition();
+			
+		return this.WorldLightPosition.slice();
 	}
 	
 	GetObjectUniforms(GizmoManager)
 	{
 		function ActorPosition(Actor,ActorIndex)
 		{
-			let Position = Actor.Position;
-			if ( ActorIndex == 0 )
-				Position = GizmoManager.Gizmos[0].GetRenderPosition();
-				
+			let Position = Actor.GetRenderPosition(GizmoManager);
 			return [...Position,1];
 		}
 		function ActorMaterial(Actor)
@@ -474,7 +506,7 @@ class SceneManager_t
 		Uniforms.ObjectMaterials = this.Actors.map(ActorMaterial);
 		Uniforms.ObjectShapeParams = this.Actors.map(ActorShapeParam);
 		
-		Uniforms.WorldLightPosition = this.WorldLightPosition;
+		Uniforms.WorldLightPosition = this.GetLightPosition(GizmoManager);
 		return Uniforms;
 	}
 }
@@ -492,6 +524,11 @@ async function RenderLoop(Canvas,GetGame)
 	const Gizmos = new GizmoManager_t();
 	const Scene = new SceneManager_t();
 	
+	Scene.Actors.push( new Actor_t('Sphere1') );
+	Scene.Actors.push( new Actor_t('Sphere2') );
+	Scene.Actors[1].Colour = [0.5,0.5,0];
+	Scene.Actors[1].Position[0]+=0.4;
+	
 	function RenderGizmos()
 	{
 		const Uniforms = {};
@@ -499,7 +536,7 @@ async function RenderLoop(Canvas,GetGame)
 
 		//	bounding box
 		let w=0.40,h=0.20,d=0.20;	//	toaster cm
-		w=h=d=1;
+		w=h=d=100;
 		Uniforms.WorldMin = [-w,-h,-d];
 		Uniforms.WorldMax = [w,h,d];
 		Object.assign( Uniforms, Gizmos.GetUniforms() );
@@ -517,7 +554,7 @@ async function RenderLoop(Canvas,GetGame)
 
 		//	bounding box
 		let w=0.40,h=0.20,d=0.20;	//	toaster cm
-		w=h=d=1;
+		w=h=d=100;
 		Uniforms.WorldMin = [-w,-h,-d];
 		Uniforms.WorldMax = [w,h,d];
 		Object.assign( Uniforms, Scene.GetObjectUniforms(Gizmos) );
@@ -541,7 +578,7 @@ async function RenderLoop(Canvas,GetGame)
 
 
 		//	render
-		Time = Time/20 % 1;
+		Time = Time/100 % 1;
 		Context.Clear(NormalToRainbow(Time));
 		
 		RenderScene();

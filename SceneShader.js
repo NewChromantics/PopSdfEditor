@@ -15,15 +15,15 @@ uniform float TimeNormal;
 #define Mat_None	0.0
 #define Mat_Object0	1.0
 
-#define PinkColour		vec3(1,0,1)
+#define PinkColour		vec3(0.8,0,0.8)
 
 #define ObjectCount	10
 uniform vec4 ObjectMaterials[ObjectCount];
 uniform vec4 ObjectPositions[ObjectCount];
 uniform vec4 ObjectShapeParams[ObjectCount];
 
-#define FarZ		20.0
-#define MAX_STEPS	30
+#define FarZ		10.0
+#define MAX_STEPS	20
 
 void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
 {
@@ -44,6 +44,14 @@ float rand(vec3 co)
 float opUnion( float d1, float d2 )			{ return min(d1,d2); }
 float opSubtraction( float d1, float d2 )	{ return max(-d1,d2); }
 float opIntersection( float d1, float d2 )	{ return max(d1,d2); }
+float opSmoothUnion( float d1, float d2, float k ) {
+    float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
+    return mix( d2, d1, h ) - k*h*(1.0-h); }
+float opSmoothIntersection( float d1, float d2, float k ) {
+    float h = clamp( 0.5 - 0.5*(d2-d1)/k, 0.0, 1.0 );
+    return mix( d2, d1, h ) + k*h*(1.0-h); }
+    
+    
 float sdPlane( vec3 p, vec3 n, float h )	{return dot(p,n) + h;}
 
 float sdSphere(vec3 Position,vec4 Sphere)
@@ -77,17 +85,45 @@ dm_t sdObject(vec3 Position,vec4 ObjectPosition,vec4 ObjectShapeParam,int Object
 
 	//	todo: param/w needs to specify shape?
 	//	need to think about the tree
-	float Distance = sdSphere( Position, vec4(ObjectPosition.xyz,ObjectShapeParam.x) );
+	float Distance = sdSphere( Position.xyz, vec4(ObjectPosition.xyz,ObjectShapeParam.x) );
+	Material = mix( Mat_None, Material, ObjectPosition.w );
 	
 	return dm_t( Distance, Material );
+}
+
+dm_t sdObjects(vec3 Position)
+{
+	//dm_t Hit = dm_t(999.0,Mat_None);
+	dm_t Hit = sdObject(Position,ObjectPositions[0],ObjectShapeParams[0],0);
+	for ( int i=0;	i<ObjectCount;	i++ )
+	{
+		dm_t Distancei = sdObject(Position,ObjectPositions[i],ObjectShapeParams[i],i);
+		if ( Distancei.y == Mat_None )
+			//Distancei = Hit;
+			continue;
+		//if ( i == 0 )
+		//	Hit = Distancei;
+	
+		//	gr: how I think it should work
+		/*
+		float Smoothk = 0.001;
+		Distancei.x = opSmoothUnion( Hit.x, Distancei.x, Smoothk );
+		Hit = Closest( Distancei, Hit );
+		*/
+		float Smoothk = 0.1;
+		float MergedDistance = opSmoothUnion( Hit.x, Distancei.x, Smoothk );
+		//	get closest material
+		Hit = Closest( Distancei, Hit );
+		Hit.x = MergedDistance; 
+	}
+	return Hit;
 }
 
 dm_t Map(vec3 Position,vec3 Dir)
 {
 	dm_t d = dm_t(999.0,Mat_None);
 	
-	for ( int i=0;	i<ObjectCount;	i++ )
-		d = Closest( d, sdObject(Position,ObjectPositions[i],ObjectShapeParams[i],i) );
+	d = Closest( d, sdObjects(Position) );
 	return d;
 }
 
@@ -173,12 +209,12 @@ vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec3 SeedColour,float Specular)
 vec4 GetObjectColour(vec3 WorldPosition,vec3 WorldNormal,int ObjectIndex)
 {
 	//	cant index as its dynamic
+	//vec4 ObjectMaterial = ObjectMaterials[ObjectIndex];
 	vec4 ObjectMaterial = vec4(PinkColour,1.0);
 	for ( int i=0;	i<ObjectCount;	i++ )
 		if ( i == ObjectIndex )
 			ObjectMaterial = ObjectMaterials[i];
-	//vec4 ObjectMaterial = ObjectMaterials[ObjectIndex];
-	
+
 	vec3 Rgb = ObjectMaterial.xyz;
 	float Specular = ObjectMaterial.w;
 	

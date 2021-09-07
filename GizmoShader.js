@@ -4,7 +4,7 @@ varying vec3 WorldPosition;
 varying vec4 OutputProjectionPosition;
 uniform mat4 CameraToWorldTransform;
 uniform vec3 WorldLightPosition;
-#define FarZ	20.0
+#define FarZ	10.0
 #define WorldUp	vec3(0,1,0)
 
 uniform float TimeNormal;
@@ -26,7 +26,7 @@ uniform vec2 MouseUv;
 
 uniform vec4 RenderTargetRect;
 
-#define MAX_AXISS	1
+#define MAX_AXISS	4
 uniform vec4 AxisPositions[MAX_AXISS];	//	w = size? 0 dont render
 #define AxisSize	0.1
 #define AxisRadius	(AxisSize*0.001)
