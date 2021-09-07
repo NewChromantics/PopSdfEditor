@@ -26,13 +26,13 @@ uniform vec2 MouseUv;
 
 uniform vec4 RenderTargetRect;
 
-#define MAX_AXISS	10
+#define MAX_AXISS	5
 uniform vec4 AxisPositions[MAX_AXISS];	//	w = size? 0 dont render
 #define AxisSize	0.1
 #define AxisRadius	(AxisSize*0.001)
 
 //	really we should raytrace instead of step
-#define MAX_STEPS	10
+#define MAX_STEPS	4
 
 void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
 {
