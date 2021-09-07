@@ -369,12 +369,20 @@ class GizmoManager_t
 		this.SelectedGizmoIndex = null;
 		this.SelectedGizmoTime = null;	//	grab t (todo: rename from [ray]time to... normal?)
 		
+		//	we put names of gizmos in this queue to reduce queue size
 		this.GizmoChangedQueue = new PromiseQueue('GizmoChangedQueue');
 	}
 	
 	async WaitForGizmoChange()
 	{
-		return this.GizmoChangedQueue.WaitForNext();
+		const ChangedGizmoName = await this.GizmoChangedQueue.WaitForNext();
+		const Gizmo = this.GetGizmo(ChangedGizmoName);
+		return Gizmo;
+	}
+	
+	OnGizmoChanged(Gizmo)
+	{
+		this.GizmoChangedQueue.PushUnique( Gizmo.Name );
 	}
 	
 	//	if initial pos is specified, we create any missing gizmos
@@ -389,7 +397,7 @@ class GizmoManager_t
 			
 		function OnChanged()
 		{
-			this.GizmoChangedQueue.Push(Gizmo);
+			this.OnGizmoChanged(Gizmo);
 		}
 		Gizmo = new GizmoAxis_t(Name,OnChanged.bind(this));
 		Gizmo.Position = InitialPosition.slice(); 
@@ -414,7 +422,7 @@ class GizmoManager_t
 			//	let go
 			const Gizmo = this.Gizmos[this.SelectedGizmoIndex]; 
 			Gizmo.BakeSelectedOffset();
-			this.GizmoChangedQueue.Push(Gizmo);
+			this.OnGizmoChanged(Gizmo);
 			//this.SelectedButton = null;
 			//this.SelectedAxisIndex = null;
 		}
@@ -431,7 +439,7 @@ class GizmoManager_t
 			{
 				Gizmo.SetRenderSelectedAxisOffset( Hit.AxisTime - this.SelectedGizmoTime );
 				//console.log(`Move axis from ${this.SelectedGizmoTime} to ${Hit.AxisTime}`);
-				this.GizmoChangedQueue.Push(Gizmo);
+				this.OnGizmoChanged(Gizmo);
 			}
 		}
 		else 
