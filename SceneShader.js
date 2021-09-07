@@ -1,4 +1,4 @@
-export default `
+export default function(MapSource){return `
 precision highp float;
 varying vec3 WorldPosition;
 varying vec4 OutputProjectionPosition;
@@ -123,7 +123,8 @@ dm_t Map(vec3 Position,vec3 Dir)
 {
 	dm_t d = dm_t(999.0,Mat_None);
 	
-	d = Closest( d, sdObjects(Position) );
+	${MapSource}
+	
 	return d;
 }
 
@@ -306,4 +307,4 @@ void main()
 	gl_FragColor = Colour;
 	if ( Colour.w == 0.0 )	discard;
 }
-`;
+`};

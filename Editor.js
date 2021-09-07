@@ -1,7 +1,7 @@
 import GlContext_t from './TinyWebgl.js'
 import GizmoFragSource from './GizmoShader.js'
-import SceneFragSource from './SceneShader.js'
-
+import SceneFragSourcer from './SceneShader.js'
+import PromiseQueue from './PopEngineCommon/PromiseQueue.js'
 import Camera_t from './PopEngineCommon/Camera.js'
 import {MatrixInverse4x4,Normalise3,Add3,Distance3,GetRayPositionAtTime,GetRayRayIntersection3} from './PopEngineCommon/Math.js'
 
@@ -240,12 +240,13 @@ function GetRayFromCameraUv(uv)
 
 class GizmoAxis_t
 {
-	constructor(Name)
+	constructor(Name,OnChanged)
 	{
 		this.Name = Name;
 		this.Position = [0,0,0];
 		this.SelectedAxis = null;
-		this.SelectedAxisRenderOffset = 0; 
+		this.SelectedAxisRenderOffset = 0;
+		this.OnChanged = OnChanged; 
 	}
 	
 	BakeSelectedOffset()
@@ -253,6 +254,7 @@ class GizmoAxis_t
 		this.Position[this.SelectedAxis] += this.SelectedAxisRenderOffset;
 		this.SelectedAxis = null;
 		this.SelectedAxisRenderOffset = 0;
+		this.OnChanged( this.Position, true );
 	}
 	
 	SetRenderSelectedAxisOffset(Offset)
@@ -365,6 +367,13 @@ class GizmoManager_t
 		this.SelectedButton = null;	
 		this.SelectedGizmoIndex = null;
 		this.SelectedGizmoTime = null;	//	grab t (todo: rename from [ray]time to... normal?)
+		
+		this.GizmoChangedQueue = new PromiseQueue('GizmoChangedQueue');
+	}
+	
+	async WaitForGizmoChange()
+	{
+		return this.GizmoChangedQueue.WaitForNext();
 	}
 	
 	//	if initial pos is specified, we create any missing gizmos
@@ -377,7 +386,11 @@ class GizmoManager_t
 		if ( !InitialPosition )
 			return null;
 			
-		Gizmo = new GizmoAxis_t(Name);
+		function OnChanged()
+		{
+			this.GizmoChangedQueue.Push(Gizmo);
+		}
+		Gizmo = new GizmoAxis_t(Name,OnChanged.bind(this));
 		Gizmo.Position = InitialPosition.slice(); 
 		this.Gizmos.push(Gizmo);
 		return Gizmo;
@@ -400,6 +413,7 @@ class GizmoManager_t
 			//	let go
 			const Gizmo = this.Gizmos[this.SelectedGizmoIndex]; 
 			Gizmo.BakeSelectedOffset();
+			this.GizmoChangedQueue.Push(Gizmo);
 			//this.SelectedButton = null;
 			//this.SelectedAxisIndex = null;
 		}
@@ -416,6 +430,7 @@ class GizmoManager_t
 			{
 				Gizmo.SetRenderSelectedAxisOffset( Hit.AxisTime - this.SelectedGizmoTime );
 				//console.log(`Move axis from ${this.SelectedGizmoTime} to ${Hit.AxisTime}`);
+				this.GizmoChangedQueue.Push(Gizmo);
 			}
 		}
 		else 
@@ -454,9 +469,15 @@ class Actor_t
 	constructor(Name)
 	{
 		this.Name = Name;
-		this.Position = [0.1,0.1,0];
-		this.ShapeParam = [0.4];
+		this.Position = [0.0,0.0,0];
+		this.SphereRadius = 0.2;
 		this.Colour = [0,0.5,0.5];
+		this.OnActorChanged = function(){};
+	}
+	
+	OnChanged()
+	{
+		this.OnActorChanged(this);
 	}
 	
 	GetRenderPosition(GizmoManager)
@@ -466,6 +487,14 @@ class Actor_t
 			return this.Position.slice();
 		return Gizmo.GetRenderPosition();
 	}
+	
+	GetSdf(Parameters,GizmoManager)
+	{
+		const ParamsSource = Parameters.join(',');
+		let [x,y,z] = this.GetRenderPosition(GizmoManager);
+		let r = this.SphereRadius;
+		return `sdSphere( ${ParamsSource}, vec4(${x},${y},${z},${r}) )`;
+	}
 }
 
 class SceneManager_t
@@ -474,6 +503,17 @@ class SceneManager_t
 	{
 		this.WorldLightPosition = [-0.4,1.4,-1.4];
 		this.Actors = [];
+		this.SceneChangedQueue = new PromiseQueue('SceneChangedQueue');
+	}
+	
+	async WaitForChange()
+	{
+		return this.SceneChangedQueue.WaitForLatest();
+	}
+	
+	GetActor(Name)
+	{
+		return this.Actors.find( a => a.Name == Name );
 	}
 	
 	GetLightPosition(GizmoManager)
@@ -502,12 +542,41 @@ class SceneManager_t
 		}
 		
 		const Uniforms = {};
-		Uniforms.ObjectPositions = this.Actors.map(ActorPosition);
+		//Uniforms.ObjectPositions = this.Actors.map(ActorPosition);
 		Uniforms.ObjectMaterials = this.Actors.map(ActorMaterial);
-		Uniforms.ObjectShapeParams = this.Actors.map(ActorShapeParam);
+		//Uniforms.ObjectShapeParams = this.Actors.map(ActorShapeParam);
 		
 		Uniforms.WorldLightPosition = this.GetLightPosition(GizmoManager);
 		return Uniforms;
+	}
+	
+	GetSdfMapSource(GizmoManager)
+	{
+		//	need to manage material uniforms here
+		function ActorToSdf(Actor)
+		{
+		//d = Closest( d, dm_t(sdSphere( Position, vec4(0,0,0,0.2) )),Mat_Object0) )
+		
+			let Sdf = Actor.GetSdf([`Position`],GizmoManager);
+			const Material = `Mat_Object0`;
+			let Source = `d = Closest( d, dm_t(${Sdf},${Material}) );`;
+			return Source;
+		}
+		let Sources = this.Actors.map( ActorToSdf );
+		let Source = Sources.join('');	//	could use \n for nicer code, but dont add to keep line numbers accurate
+		return Source;
+	}
+	
+	OnActorChanged(Actor)
+	{
+		this.SceneChangedQueue.Push();
+	}
+	
+	AddActor(Actor)
+	{
+		this.Actors.push(Actor);
+		Actor.OnActorChanged = this.OnActorChanged.bind(this);
+		return Actor;
 	}
 }
 
@@ -516,18 +585,46 @@ async function RenderLoop(Canvas,GetGame)
 	BindEvents(Canvas);
 	const Context = new GlContext_t(Canvas);
 
+	
 	const GizmoShader = Context.CreateShader( VertSource, GizmoFragSource );
-	const SceneShader = Context.CreateShader( VertSource, SceneFragSource );
+	let SceneShader = null;
 	const GizmoCube = Context.CreateCubeGeo( GizmoShader );
 	const SceneCube = GizmoCube;
 	
 	const Gizmos = new GizmoManager_t();
 	const Scene = new SceneManager_t();
 	
-	Scene.Actors.push( new Actor_t('Sphere1') );
-	Scene.Actors.push( new Actor_t('Sphere2') );
-	Scene.Actors[1].Colour = [0.5,0.5,0];
-	Scene.Actors[1].Position[0]+=0.4;
+	Scene.AddActor( new Actor_t('Sphere1') );
+	let Actor2 = Scene.AddActor( new Actor_t('Sphere2') );
+	Actor2.Colour = [0.5,0.5,0];
+	Actor2.Position[0]+=0.4;
+	
+	async function SceneChangedThread()
+	{
+		while(Scene)
+		{
+			await Scene.WaitForChange();
+			SceneShader = null;
+		}
+	}
+	async function GizmoChangedThread()
+	{
+		while(Gizmos)
+		{
+			const ChangedGizmo = await Gizmos.WaitForGizmoChange();
+			let Actor = Scene.GetActor(ChangedGizmo.Name);
+			if ( !Actor )
+			{
+				console.warning(`Failed to find actor for gizmo ${ChangedGizmo.Name}`);
+				await Pop.Yield(400);
+				continue;
+			}
+			Actor.Position = ChangedGizmo.Position.slice();
+			Actor.OnChanged();
+		}
+	}
+	SceneChangedThread().catch(console.error);
+	GizmoChangedThread().catch(console.error);
 	
 	function RenderGizmos()
 	{
@@ -549,6 +646,23 @@ async function RenderLoop(Canvas,GetGame)
 	
 	function RenderScene()
 	{
+		//	generate new scene shader if we need to
+		if ( !SceneShader )
+		{
+			try
+			{
+				const SceneSdfMap = Scene.GetSdfMapSource(Gizmos);
+				const SceneFragSource = SceneFragSourcer(SceneSdfMap);
+				SceneShader = Context.CreateShader( VertSource, SceneFragSource );
+			}
+			catch(e)
+			{
+				Pop.Warning(`failed to create scene shader; ${e}`);
+			}
+		}
+		
+		if ( !SceneShader )
+			return;
 		const Uniforms = {};
 		GetCameraUniforms(Uniforms,Context.GetScreenRect());
 
