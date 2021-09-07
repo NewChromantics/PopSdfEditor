@@ -8,6 +8,7 @@ import {MatrixInverse4x4,Normalise3,Add3,Distance3,GetRayPositionAtTime,GetRayRa
 import Pop from './PopEngineCommon/PopEngine.js'
 import {CreatePromise} from './PopEngineCommon/PopApi.js'
 import {NormalToRainbow} from './PopEngineCommon/Colour.js'
+import {Box_t,Line_t,Sphere_t} from './Shapes.js'
 
 const VertSource = `
 precision highp float;
@@ -474,36 +475,7 @@ class Actor_t
 		this.Position = [0.0,0.0,0];
 		this.Colour = [0,0.5,0.5];
 
-		//this.SphereRadius = 0.2;
-		this.BoxSize = [0.1,0.4,0.1];
-		this.LineEndOffset = [0,0.2,0];
-		this.LineRadius = 0.05;
-	}
-	
-	SetNone()
-	{
-		this.SphereRadius = null;
-		this.BoxSize = null;
-		this.LineEndOffset = null;
-	}
-	
-	SetSphere(SphereRadius)
-	{
-		this.SetNone();
-		this.SphereRadius = SphereRadius;
-	}
-	
-	SetBox(Sizex,Sizey,Sizez)
-	{
-		this.SetNone();
-		this.BoxSize = [Sizex,Sizey,Sizez];
-	}
-	
-	SetLine(Offx,Offy,Offz,Radius)
-	{
-		this.SetNone();
-		this.LineEndOffset = [Offx,Offy,Offz];
-		this.LineRadius = Radius;
+		this.Shape = null;
 	}
 		
 	OnChanged()
@@ -519,50 +491,14 @@ class Actor_t
 		return Gizmo.GetRenderPosition();
 	}
 	
-	GetSphereSdf(Parameters,Position)
-	{
-		let [x,y,z] = Position;
-		let r = this.SphereRadius;
-		let s = `vec4(${x},${y},${z},${r})`;
-		return `sdSphere( ${Parameters}, ${s} )`;
-	}
-
-	GetBoxSdf(Parameters,Position)
-	{
-		let [x,y,z] = Position;
-		let rx = this.BoxSize[0] / 2;
-		let ry = this.BoxSize[1] / 2;
-		let rz = this.BoxSize[2] / 2;
-		let c = `vec3(${x},${y},${z})`;
-		let r = `vec3(${rx},${ry},${rz})`;
-		return `sdBox( ${Parameters}, ${c}, ${r} )`;
-	}
-	
-	GetLineSdf(Parameters,Position)
-	{
-		let [sx,sy,sz] = Position;
-		let [ex,ey,ez] = Add3( Position, this.LineEndOffset );
-		let r = this.LineRadius;
-		let s = `vec3(${sx},${sy},${sz})`;
-		let e = `vec3(${ex},${ey},${ez})`;
-		return `sdCapsule( ${Parameters}, ${s}, ${e}, ${r} )`;
-	}
-	
 	GetSdf(Parameters,GizmoManager)
 	{
 		const Position = this.GetRenderPosition(GizmoManager);
 		const ParamsSource = Parameters.join(',');
+		if ( !this.Shape )
+			return null;
 		
-		if ( this.LineEndOffset )
-			return this.GetLineSdf( ParamsSource, Position );
-
-		if ( this.SphereRadius )
-			return this.GetSphereSdf( ParamsSource, Position );
-	
-		if ( this.BoxSize )
-			return this.GetBoxSdf( ParamsSource, Position );
-		
-		return null;
+		return this.Shape.GetSdf( ParamsSource, Position );
 	}
 }
 
@@ -664,13 +600,13 @@ async function RenderLoop(Canvas,GetGame)
 	const Scene = new SceneManager_t();
 	
 	let Actor1 = Scene.AddActor( new Actor_t('Sphere1') );
-	Actor1.SetSphere(0.1);
+	Actor1.Shape = new Sphere_t(0.1);
 	let Actor2 = Scene.AddActor( new Actor_t('Sphere2') );
-	Actor2.SetBox(0.1,0.2,0.1);
+	Actor2.Shape = new Box_t(0.1,0.2,0.1);
 	Actor2.Colour = [0.5,0.5,0];
 	Actor2.Position[0]+=0.4;
 	let Actor3 = Scene.AddActor( new Actor_t('Sphere3') );
-	Actor3.SetLine(0.1,0.2,0.1,0.04);
+	Actor3.Shape = new Line_t(0.1,0.2,0.1,0.04);
 	Actor3.Colour = [0.5,0,0.5];
 	Actor3.Position[0]-=0.4;
 
