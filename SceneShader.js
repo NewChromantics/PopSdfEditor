@@ -19,8 +19,6 @@ uniform float TimeNormal;
 
 #define ObjectCount	10
 uniform vec4 ObjectMaterials[ObjectCount];
-uniform vec4 ObjectPositions[ObjectCount];
-uniform vec4 ObjectShapeParams[ObjectCount];
 
 #define FarZ		10.0
 #define MAX_STEPS	20
@@ -77,48 +75,6 @@ float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
 dm_t Closest(dm_t a,dm_t b)
 {
 	return a.x < b.x ? a : b;
-}
-
-dm_t sdObject(vec3 Position,vec4 ObjectPosition,vec4 ObjectShapeParam,int ObjectIndex)
-{
-	//vec3 ObjectPosition = ObjectPositions[ObjectIndex].xyz;
-	//vec4 ObjectShapeParam = ObjectShapeParams[ObjectIndex];
-	float Material = Mat_Object0 + float(ObjectIndex);
-
-	//	todo: param/w needs to specify shape?
-	//	need to think about the tree
-	float Distance = sdSphere( Position.xyz, vec4(ObjectPosition.xyz,ObjectShapeParam.x) );
-	Material = mix( Mat_None, Material, ObjectPosition.w );
-	
-	return dm_t( Distance, Material );
-}
-
-dm_t sdObjects(vec3 Position)
-{
-	//dm_t Hit = dm_t(999.0,Mat_None);
-	dm_t Hit = sdObject(Position,ObjectPositions[0],ObjectShapeParams[0],0);
-	for ( int i=0;	i<ObjectCount;	i++ )
-	{
-		dm_t Distancei = sdObject(Position,ObjectPositions[i],ObjectShapeParams[i],i);
-		if ( Distancei.y == Mat_None )
-			//Distancei = Hit;
-			continue;
-		//if ( i == 0 )
-		//	Hit = Distancei;
-	
-		//	gr: how I think it should work
-		/*
-		float Smoothk = 0.001;
-		Distancei.x = opSmoothUnion( Hit.x, Distancei.x, Smoothk );
-		Hit = Closest( Distancei, Hit );
-		*/
-		float Smoothk = 0.1;
-		float MergedDistance = opSmoothUnion( Hit.x, Distancei.x, Smoothk );
-		//	get closest material
-		Hit = Closest( Distancei, Hit );
-		Hit.x = MergedDistance; 
-	}
-	return Hit;
 }
 
 dm_t Map(vec3 Position,vec3 Dir)
