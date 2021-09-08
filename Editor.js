@@ -249,7 +249,8 @@ class Actor_t
 		this.OnActorChanged = function(){};
 
 		this.Position = [0.0,0.0,0];
-		this.Colour = [0,0.5,0.5];
+		this.Colour = [0,0.5,0.5,1];
+		this.Specular = 1;
 
 		this.Shape = null;
 	}
@@ -311,24 +312,7 @@ class SceneManager_t
 	
 	GetObjectUniforms(GizmoManager)
 	{
-		function ActorPosition(Actor,ActorIndex)
-		{
-			let Position = Actor.GetRenderPosition(GizmoManager);
-			return [...Position,1];
-		}
-		function ActorMaterial(Actor)
-		{
-			return [...Actor.Colour,0.5];
-		}
-		function ActorShapeParam(Actor)
-		{
-			return [...Actor.ShapeParam,0,0,0,0].slice(0,4);
-		}
-		
 		const Uniforms = {};
-		//Uniforms.ObjectPositions = this.Actors.map(ActorPosition);
-		Uniforms.ObjectMaterials = this.Actors.map(ActorMaterial);
-		//Uniforms.ObjectShapeParams = this.Actors.map(ActorShapeParam);
 		
 		Uniforms.WorldLightPosition = this.GetLightPosition(GizmoManager);
 
@@ -343,13 +327,18 @@ class SceneManager_t
 	
 	GetActorUniforms(Actor,GizmoManager)
 	{
-		const Pos_Uniform = `${Actor.Name}_Position_`;
-		const Pos_Value = Actor.GetRenderPosition(GizmoManager);
-		
 		const Uniforms = {};
 		Uniforms.Position = {};
-		Uniforms.Position.Uniform = Pos_Uniform;
-		Uniforms.Position.Value = Pos_Value;
+		Uniforms.Position.Uniform = `${Actor.Name}_Position_`;
+		Uniforms.Position.Value = Actor.GetRenderPosition(GizmoManager);
+		
+		Uniforms.Colour = {};
+		Uniforms.Colour.Uniform = `${Actor.Name}_Colour_`;
+		Uniforms.Colour.Value = [...Actor.Colour,1,1,1,1].slice(0,4);
+		
+		Uniforms.Specular = {};
+		Uniforms.Specular.Uniform = `${Actor.Name}_Specular_`;
+		Uniforms.Specular.Value = Actor.Specular;
 		
 		return Uniforms;
 	}
@@ -357,24 +346,52 @@ class SceneManager_t
 	GetSdfSource(GizmoManager,BakeValues=false)
 	{
 		let Globals = [];
+		let MaterialMaps = [];
+		let MaterialSource = [];
+		function PushMaterial(FunctionName,MaterialName,Colour,Specular)
+		{
+			const MaterialMap = {};
+			MaterialMap.FunctionName = FunctionName;
+			MaterialMap.MaterialName = MaterialName;
+			MaterialMap.Colour = Colour;
+			MaterialMaps.push(MaterialMap);
+			
+			const Source = `
+			if ( Material == ${MaterialName} )	return GetMaterialColour_${FunctionName}( WorldPosition, WorldNormal, Shadow, ${Colour}, ${Specular} );
+			`;
+			MaterialSource.push(Source);
+			
+			Globals.push(`uniform vec4 ${Colour};`);
+			Globals.push(`uniform float ${Specular};`);
+		}
+		
 		//	need to manage material uniforms here
-		function ActorToSdf(Actor)
+		function ActorToSdf(Actor,ActorIndex)
 		{
 			const ActorUniforms = this.GetActorUniforms(Actor,GizmoManager);
 			
-			let VariableName = BakeValues ? null : ActorUniforms.Position.Uniform;
-			let Sdf = Actor.GetSdf([`Position`],VariableName,GizmoManager);
 			
-			if ( VariableName )
+			//	setup material
+			const Material = `${Actor.Name}_Material`;
+			//	just some id
+			const Materialf = `(1000.0 + ${ActorIndex}.0)`;
+			Globals.push(`const float ${Material} = ${Materialf};`);
+			
+			PushMaterial('Lit',Material,ActorUniforms.Colour.Uniform,ActorUniforms.Specular.Uniform);
+			
+			
+			//	setup position/map/sdf
+			let PositionVariableName = BakeValues ? null : ActorUniforms.Position.Uniform;
+			let Sdf = Actor.GetSdf([`Position`],PositionVariableName,GizmoManager);
+			
+			if ( PositionVariableName )
 			{
 				//	step/version 1, pos as constant
 				const [x,y,z] = Actor.GetRenderPosition(GizmoManager);
-				//const Global = `const vec3 ${VariableName} = vec3( ${x}, ${y}, ${z} );`
-				const Global = `uniform vec3 ${VariableName};`
+				//const Global = `const vec3 ${PositionVariableName} = vec3( ${x}, ${y}, ${z} );`
+				const Global = `uniform vec3 ${PositionVariableName};`
 				Globals.push(Global);
-			}
-			
-			const Material = `Mat_Object0`;
+			}			
 			
 			//	if GetSdf returns an array, the last line goes in the usual distance code
 			//	the rest is prefix
@@ -396,6 +413,7 @@ class SceneManager_t
 		const Source = {};
 		Source.MapSdfs = MapSdfs;
 		Source.Globals = Globals;
+		Source.MaterialSource = MaterialSource;
 		return Source;
 	}
 	
@@ -445,7 +463,7 @@ async function RenderLoop(Canvas,GetGame)
 	Actor4.Shape.AddShape( new Box_t(0.1,0.2,0.1) );
 	Actor4.Shape.AddShape( new Line_t(0.1,0.2,0.1,0.04), [0.1,0.1,0.1] );
 	Actor4.Shape.AddShape( new Sphere_t(0.1), [0.0,-0.2,-0.1] );
-	Actor4.Colour = [0.5,0,0.5];
+	Actor4.Colour = [0.5,0,0];
 	Actor4.Position[0] = 0.0;
 
 	const BakedScenePositions = false;
@@ -509,7 +527,7 @@ async function RenderLoop(Canvas,GetGame)
 			try
 			{
 				const SceneSdfSource = Scene.GetSdfSource(Gizmos,BakedScenePositions);
-				const SceneFragSource = SceneFragSourcer( SceneSdfSource.Globals, SceneSdfSource.MapSdfs );
+				const SceneFragSource = SceneFragSourcer( SceneSdfSource.Globals, SceneSdfSource.MapSdfs, SceneSdfSource.MaterialSource );
 				SceneShader = Context.CreateShader( VertSource, SceneFragSource );
 			}
 			catch(e)

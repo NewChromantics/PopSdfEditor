@@ -1,4 +1,4 @@
-export default function(Globals,MapSdfs){return `
+export default function(Globals,MapSdfs,MaterialSource){return `
 precision highp float;
 varying vec3 WorldPosition;
 varying vec4 OutputProjectionPosition;
@@ -13,12 +13,7 @@ uniform float TimeNormal;
 
 
 #define Mat_None	0.0
-#define Mat_Object0	1.0
-
-#define PinkColour		vec3(0.8,0,0.8)
-
-#define ObjectCount	10
-uniform vec4 ObjectMaterials[ObjectCount];
+#define PinkColour		vec4(0.8,0,0.8,1.0)
 
 #define FarZ		10.0
 #define MAX_STEPS	20
@@ -144,11 +139,11 @@ float Range(float Min,float Max,float Value)
 }
 
 
-vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec3 SeedColour,float Specular)
+vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec4 SeedColour,float Specular,float Shadow)
 {
 	//return vec4(SeedColour,1.0);
-	vec3 RumBright = SeedColour * vec3(1.0/0.7,1.0/0.5,1.0/0.1);
-	vec3 RumMidTone = SeedColour;
+	vec3 RumBright = SeedColour.xyz * vec3(1.0/0.7,1.0/0.5,1.0/0.1);
+	vec3 RumMidTone = SeedColour.xyz;
 
 	vec3 Colour = RumMidTone;
 
@@ -157,40 +152,33 @@ vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec3 SeedColour,float Specular)
 
 	Colour = mix( Colour, RumBright, Dot );
 	
+	//	invalidate specular by shadow intensity
+	Specular *= 1.0 - (Shadow*Shadow);
+	
 	//	specular
 	float DotMax = mix( 1.0, 0.96, Specular ); 
 	if ( Dot > DotMax )
 		Colour = vec3(1,1,1);
 		
-	return vec4( Colour, 1.0 );
+	return vec4( Colour, SeedColour.w );
 }
 
-vec4 GetObjectColour(vec3 WorldPosition,vec3 WorldNormal,int ObjectIndex)
+vec4 GetMaterialColour_Lit(vec3 WorldPosition,vec3 WorldNormal,float Shadow,vec4 Colour,float Specular)
 {
-	//	cant index as its dynamic
-	//vec4 ObjectMaterial = ObjectMaterials[ObjectIndex];
-	vec4 ObjectMaterial = vec4(PinkColour,1.0);
-	for ( int i=0;	i<ObjectCount;	i++ )
-		if ( i == ObjectIndex )
-			ObjectMaterial = ObjectMaterials[i];
-
-	vec3 Rgb = ObjectMaterial.xyz;
-	float Specular = ObjectMaterial.w;
-	
-	return GetLitColour( WorldPosition, WorldNormal, Rgb, Specular );
+	return GetLitColour(WorldPosition,WorldNormal,Colour,Specular,Shadow);
 }
 
-
-vec4 GetMaterialColour(float Material,vec3 WorldPos,vec3 WorldNormal)
+vec4 GetMaterialColour(float Material,vec3 WorldPosition,vec3 WorldNormal,float Shadow)
 {
 	if ( Material == Mat_None )		return vec4(0,0,0,0);
 
-	if ( Material >= Mat_Object0 )
-		return GetObjectColour( WorldPos, WorldNormal, int(Material-Mat_Object0) );
-	//if ( !UserHoverHandle )
-	//	if ( Material == Mat_Handle )	return GetLitColour(WorldPos,WorldNormal,ToasterColour,ToasterSpecular);
+	${MaterialSource.join('')}
 	
-	return GetLitColour(WorldPos,WorldNormal,PinkColour,1.0);
+	//	no material, render normal
+	WorldNormal += 1.0;
+	WorldNormal /= 2.0;
+	return vec4(WorldNormal,1.0);
+	return GetLitColour(WorldPosition,WorldNormal,PinkColour,1.0,Shadow);
 }
 
 
@@ -250,7 +238,6 @@ void main()
 	
 	vec3 Normal = calcNormal(HitPos);
 
-	vec4 Colour = GetMaterialColour(HitDistance.w,HitPos,Normal);
 		
 	//Colour.xyz *= mix(1.0,0.7,HitDistance.y);	//	ao from heat
 
@@ -261,6 +248,10 @@ void main()
 	vec3 ShadowRayDir = normalize(WorldLightPosition-HitPos);
 	//float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );
 	float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
+
+	//	check shadow first, as we don't want specular to appear when in shadow
+	vec4 Colour = GetMaterialColour(HitDistance.w,HitPos,Normal,1.0-Shadow);
+
 	Colour.xyz *= mix( ShadowMult, 1.0, Shadow );//Shadow * ShadowMult;
 
 	gl_FragColor = Colour;
