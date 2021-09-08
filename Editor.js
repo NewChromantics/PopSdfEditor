@@ -254,9 +254,9 @@ class Actor_t
 		this.Shape = null;
 	}
 		
-	OnChanged()
+	OnChanged(Change)
 	{
-		this.OnActorChanged(this);
+		this.OnActorChanged(this,Change);
 	}
 	
 	GetRenderPosition(GizmoManager)
@@ -331,24 +331,46 @@ class SceneManager_t
 		//Uniforms.ObjectShapeParams = this.Actors.map(ActorShapeParam);
 		
 		Uniforms.WorldLightPosition = this.GetLightPosition(GizmoManager);
+
+		//	expand [should be] unique actor uniform into our uniforms
+		const ActorActorUniforms = this.Actors.map( a => this.GetActorUniforms(a,GizmoManager) );
+		for ( let ActorActorUniform of ActorActorUniforms )
+			for ( let ActorUniform of Object.values(ActorActorUniform) )
+				Uniforms[ActorUniform.Uniform] = ActorUniform.Value;
+		
 		return Uniforms;
 	}
 	
-	GetSdfSource(GizmoManager)
+	GetActorUniforms(Actor,GizmoManager)
+	{
+		const Pos_Uniform = `${Actor.Name}_Position_`;
+		const Pos_Value = Actor.GetRenderPosition(GizmoManager);
+		
+		const Uniforms = {};
+		Uniforms.Position = {};
+		Uniforms.Position.Uniform = Pos_Uniform;
+		Uniforms.Position.Value = Pos_Value;
+		
+		return Uniforms;
+	}
+	
+	GetSdfSource(GizmoManager,BakeValues=false)
 	{
 		let Globals = [];
 		//	need to manage material uniforms here
 		function ActorToSdf(Actor)
 		{
-		//d = Closest( d, dm_t(sdSphere( Position, vec4(0,0,0,0.2) )),Mat_Object0) )
-			let VariableName = `${Actor.Name}_Position_`;
+			const ActorUniforms = this.GetActorUniforms(Actor,GizmoManager);
+			
+			let VariableName = BakeValues ? null : ActorUniforms.Position.Uniform;
 			let Sdf = Actor.GetSdf([`Position`],VariableName,GizmoManager);
 			
 			if ( VariableName )
 			{
 				//	step/version 1, pos as constant
 				const [x,y,z] = Actor.GetRenderPosition(GizmoManager);
-				const Global = `const vec3 ${VariableName} = vec3( ${x}, ${y}, ${z} );`
+				//const Global = `const vec3 ${VariableName} = vec3( ${x}, ${y}, ${z} );`
+				const Global = `uniform vec3 ${VariableName};`
 				Globals.push(Global);
 			}
 			
@@ -369,7 +391,7 @@ class SceneManager_t
 			Source += `d = Closest( d, dm_t(${Sdf},${Material}) );`;
 			return Source;
 		}
-		let MapSdfs = this.Actors.map( ActorToSdf );
+		let MapSdfs = this.Actors.map( ActorToSdf.bind(this) );
 		
 		const Source = {};
 		Source.MapSdfs = MapSdfs;
@@ -377,9 +399,9 @@ class SceneManager_t
 		return Source;
 	}
 	
-	OnActorChanged(Actor)
+	OnActorChanged(Actor,ChangeKey)
 	{
-		this.SceneChangedQueue.Push();
+		this.SceneChangedQueue.Push(ChangeKey);
 	}
 	
 	AddActor(Actor)
@@ -426,12 +448,19 @@ async function RenderLoop(Canvas,GetGame)
 	Actor4.Colour = [0.5,0,0.5];
 	Actor4.Position[0] = 0.0;
 
+	const BakedScenePositions = false;
 	
 	async function SceneChangedThread()
 	{
 		while(Scene)
 		{
-			await Scene.WaitForChange();
+			const ChangedKey = await Scene.WaitForChange();
+			
+			//	dont need to invalidate SDF if we're not baking positions
+			if ( !BakedScenePositions && ChangedKey == 'Position' )
+				continue;
+				 
+			//console.log(`Invalidating shader (reason=${ChangedKey})`);
 			SceneShader = null;
 		}
 	}
@@ -448,7 +477,7 @@ async function RenderLoop(Canvas,GetGame)
 				continue;
 			}
 			Actor.Position = ChangedGizmo.Position.slice();
-			Actor.OnChanged();
+			Actor.OnChanged('Position');
 		}
 	}
 	SceneChangedThread().catch(console.error);
@@ -479,7 +508,7 @@ async function RenderLoop(Canvas,GetGame)
 		{
 			try
 			{
-				const SceneSdfSource = Scene.GetSdfSource(Gizmos);
+				const SceneSdfSource = Scene.GetSdfSource(Gizmos,BakedScenePositions);
 				const SceneFragSource = SceneFragSourcer( SceneSdfSource.Globals, SceneSdfSource.MapSdfs );
 				SceneShader = Context.CreateShader( VertSource, SceneFragSource );
 			}
