@@ -1,5 +1,6 @@
 <html>
 <head>
+<script src="PopEngineCommon/WebComponent_TreeView/TreeView.js" type=module></script>
 <style>
 body
 {
@@ -9,16 +10,45 @@ body
 }
 canvas
 {
-	flex-grow:1;
 	background:	black;
 }
+
+tree-view
+{
+	min-width:	20vw;
+	min-height:	20px;
+	xmax-width:	50vw;
+	background:	#eee;
+	color:		#333;
+	overflow:	scroll;
+}
+
+@media (prefers-color-scheme: dark) 
+{
+	tree-view
+	{
+		background:	#333;
+		color:		#eee;
+	}
+}
+
 </style>
 </head>
 <body>
-<canvas id=C>
+<tree-view id="ActorTree" css="PopEngineCommon/WebComponent_TreeView/TreeView.css"></tree-view>
+<canvas id=Canvas>
 <script type=module>
 import Loop from './Editor.js'
-Loop(C);
+Loop(Canvas);
+
+let Test = {};
+Test.Cat = 'Furry';
+Test.Fish = 'Wet';
+Test.Circle = {};
+	Test.Circle.Position = [0,1,2];
+	Test.Circle.Radius = 3;
+	
+ActorTree.json = Test;
 </script>
 </body>
 </html>

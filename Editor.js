@@ -1,9 +1,10 @@
-import GlContext_t from './TinyWebgl.js'
 import GizmoFragSource from './GizmoShader.js'
 import SceneFragSourcer from './SceneShader.js'
 import PromiseQueue from './PopEngineCommon/PromiseQueue.js'
 import Camera_t from './PopEngineCommon/Camera.js'
 import {MatrixInverse4x4,Normalise3,Add3,Distance3,GetRayPositionAtTime,GetRayRayIntersection3} from './PopEngineCommon/Math.js'
+
+import {CreateCubeGeometry} from './PopEngineCommon/CommonGeometry.js'
 
 import Pop from './PopEngineCommon/PopEngine.js'
 import {CreatePromise} from './PopEngineCommon/PopApi.js'
@@ -41,14 +42,16 @@ void main()
 
 
 const Camera = new Camera_t();
-Camera.Position = [ 0,0.30,-3.90 ];
+Camera.Position = [ 0,0.30,-0.90 ];
 Camera.LookAt = [ 0,0,0 ];
 Camera.FovVertical = 70;
 
 let LastRenderTargetRect = [0,0,1,1];
+let LastScreenRect = null;
 		
 function GetCameraUniforms(Uniforms,ScreenRect)
 {
+	LastScreenRect = ScreenRect;
 	LastRenderTargetRect = [0,0,1,ScreenRect[3]/ScreenRect[2]];
 	Uniforms.WorldToCameraTransform = Camera.GetWorldToCameraMatrix();
 	Uniforms.CameraProjectionTransform = Camera.GetProjectionMatrix( LastRenderTargetRect );
@@ -76,12 +79,15 @@ function Range(Min,Max,Value)
 	return (Value-Min) / (Max-Min);
 }
 
-function GetMouseValue(Event)
+function GetMouseValue(x,y,Button)
 {	
-	Element = Event.currentTarget;
-	const Rect = Element.getBoundingClientRect();
-	const ClientX = Event.pageX || Event.clientX;
-	const ClientY = Event.pageY || Event.clientY;
+	const Rect = {};
+	Rect.left = LastScreenRect[0];
+	Rect.right = LastScreenRect[0] + LastScreenRect[2];
+	Rect.top = LastScreenRect[1];
+	Rect.bottom = LastScreenRect[1] + LastScreenRect[3];
+	const ClientX = x;
+	const ClientY = y;
 	const u = Range( Rect.left, Rect.right, ClientX ); 
 	const v = Range( Rect.top, Rect.bottom, ClientY ); 
 	
@@ -125,10 +131,17 @@ function GetWheelButton()
 	return 'Wheel';
 }
 
-function MouseMove(Event)
+function OnMouseMove(x,y,Button)
 {
-	let Value = GetMouseValue(Event);
+	let Value = GetMouseValue(x,y,Button);
+	if ( Button === null )
+		Button = GetHoverButton();
 	
+	if ( HandleMouse( Button, Value, false ) )
+		return;
+		
+	InputState.MouseButtonsDown[Button] = Value;
+	/*
 	//	update all buttons
 	const Buttons = Event.buttons || 0;	//	undefined if touches
 	const ButtonMasks = [ 1<<0, 1<<2, 1<<1 ];	//	move button bits do NOT match mouse events
@@ -144,68 +157,54 @@ function MouseMove(Event)
 		InputState.MouseButtonsDown[Button] = Value;
 	}
 	ButtonsDown.forEach(OnMouseButton);
+	*/
 	
 }
 
-function MouseDown(Event)
+function OnMouseDown(x,y,Button)
 {
 	delete InputState.MouseButtonsDown[GetHoverButton()];
 
-	let Value = GetMouseValue(Event);
-	const Button = HtmlMouseToButton(Event.button);
+	let Value = GetMouseValue(x,y,Button);
 	if ( HandleMouse( Button, Value, true ) )
-	{
-		Event.preventDefault();
 		return;
-	}
-	//console.log(`MouseDown ${uv} Button=${Button}`);
+
 	InputState.MouseButtonsDown[Button] = Value;
 }
 
-function MouseUp(Event)
+function OnMouseUp(x,y,Button)
 {
-	let Value = GetMouseValue(Event);
-	//console.log(`Mouseup ${uv}`);
-	const Button = HtmlMouseToButton(Event.button);
+	let Value = GetMouseValue(x,y,Button);
 	delete InputState.MouseButtonsDown[Button];
 }
 
-function MouseWheel(Event)
+function OnMouseScroll(x,y,Button,WheelDelta)
 {
 	//	gr should update mouse here?
-	let Value = GetMouseValue(Event);
+	Button = GetWheelButton();
+	let Value = GetMouseValue(x,y,Button);
 	//console.log(`MouseWheel ${uv}`);
 	
-	//	gr: maybe change scale based on
-	//WheelEvent.deltaMode = DOM_DELTA_PIXEL, DOM_DELTA_LINE, DOM_DELTA_PAGE
-	const DeltaScale = 0.01;
-	const WheelDelta = [ Event.deltaX * DeltaScale, Event.deltaY * DeltaScale, Event.deltaZ * DeltaScale ];
 	Value.Force = WheelDelta[1];
 
-	const Button = GetWheelButton();
+	//const Button = GetWheelButton();
 
 	if ( HandleMouse( Button, Value, true ) )
-	{
-		Event.preventDefault();
 		return;
-	}
 	
 	//	need to either auto-remove this state once read, or maybe we need an event queue (probably that)
 	InputState.MouseButtonsDown[Button] = Value;
-
-	//	stop scroll
-	Event.preventDefault();
-}
-
-function MouseContextMenu(Event)
-{
-	Event.preventDefault();
-	return;
 }
 
 
-function BindEvents(Element)
+
+function BindEvents(RenderView)
 {
+	RenderView.OnMouseDown = OnMouseDown;
+	RenderView.OnMouseMove = OnMouseMove;
+	RenderView.OnMouseUp = OnMouseUp;
+	RenderView.OnMouseScroll = OnMouseScroll;
+/*
 	Element.addEventListener('mousemove', MouseMove );
 	Element.addEventListener('wheel', MouseWheel, false );
 	Element.addEventListener('contextmenu', MouseContextMenu, false );
@@ -216,6 +215,7 @@ function BindEvents(Element)
 	Element.addEventListener('touchstart', MouseDown, false );
 	Element.addEventListener('touchend', MouseUp, false );
 	Element.addEventListener('touchcancel', MouseUp, false );
+	*/
 }
 
 function GetInputRays()
@@ -245,13 +245,18 @@ function GetRayFromCameraUv(uv)
 
 async function RenderLoop(Canvas,GetGame)
 {
-	BindEvents(Canvas);
-	const Context = new GlContext_t(Canvas);
+	let Window;
+	//let Window = new Pop.Gui.Window();
+	let RenderView = new Pop.Gui.RenderView(Window,Canvas);
+	let Context = new Pop.Sokol.Context(RenderView);
 
+	BindEvents(RenderView);
 	
-	const GizmoShader = Context.CreateShader( VertSource, GizmoFragSource );
+	
+	const GizmoShader = await Context.CreateShader( VertSource, GizmoFragSource );
 	let SceneShader = null;
-	const GizmoCube = Context.CreateCubeGeo( GizmoShader );
+	const CubeGeo = CreateCubeGeometry();
+	const GizmoCube = await Context.CreateGeometry( CubeGeo );//, GizmoShader );
 	const SceneCube = GizmoCube;
 	
 	const Gizmos = new GizmoManager_t();
@@ -324,14 +329,15 @@ async function RenderLoop(Canvas,GetGame)
 		Uniforms.WorldMin = Bounds.Min;
 		Uniforms.WorldMax = Bounds.Max;
 		Object.assign( Uniforms, Gizmos.GetUniforms() );
-		Context.Draw(GizmoCube,GizmoShader,Uniforms);
+		
+		return ['Draw',GizmoCube,GizmoShader,Uniforms];
 
 		//let Pixels = Context.ReadPixels();
 		//Pixels = Pixels.slice(0,4);
 		//GameState.LastHoverMaterial = Pixels[0];
 	}
 	
-	function RenderScene()
+	async function RenderScene()
 	{
 		//	generate new scene shader if we need to
 		if ( !SceneShader )
@@ -340,7 +346,7 @@ async function RenderLoop(Canvas,GetGame)
 			{
 				const SceneSdfSource = Scene.GetSdfSource(Gizmos,BakedScenePositions);
 				const SceneFragSource = SceneFragSourcer( SceneSdfSource.Globals, SceneSdfSource.MapSdfs, SceneSdfSource.MaterialSource );
-				SceneShader = Context.CreateShader( VertSource, SceneFragSource );
+				SceneShader = await Context.CreateShader( VertSource, SceneFragSource );
 			}
 			catch(e)
 			{
@@ -358,7 +364,8 @@ async function RenderLoop(Canvas,GetGame)
 		Uniforms.WorldMin = SceneBounds.Min;
 		Uniforms.WorldMax = SceneBounds.Max;
 		Object.assign( Uniforms, Scene.GetObjectUniforms(Gizmos) );
-		Context.Draw(SceneCube,SceneShader,Uniforms);
+		//Context.Draw(SceneCube,SceneShader,Uniforms);
+		return ['Draw',SceneCube,SceneShader,Uniforms];
 	}
 	
 	
@@ -369,7 +376,8 @@ async function RenderLoop(Canvas,GetGame)
 		let Game = GetGame();
 		
 		const TimeDelta = 1/60;
-		let Time = await Context.WaitForFrame();
+		let Time = Pop.GetTimeNowMs() / 1000;
+		//let Time = await Context.WaitForFrame();
 
 		//	update
 		if ( Game )
@@ -379,10 +387,15 @@ async function RenderLoop(Canvas,GetGame)
 
 		//	render
 		Time = Time/100 % 1;
-		Context.Clear(NormalToRainbow(Time));
+		const ClearColour = NormalToRainbow(Time);
+		const ClearCmd = ['SetRenderTarget',null,ClearColour];
 		
-		RenderScene();
-		RenderGizmos();
+		const SceneCmd = await RenderScene();
+		const GizmoCmd = RenderGizmos();
+	
+		const RenderCommands = [ClearCmd,SceneCmd,GizmoCmd];
+		await Context.Render(RenderCommands);
+		
 	}
 }
 
