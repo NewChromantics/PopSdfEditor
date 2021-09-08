@@ -300,11 +300,12 @@ void main()
 
 	
 	float Shadowk = 2.50;
-	vec3 ShadowRayPos = HitPos+Normal*0.1;
+	float ShadowMult = 0.1;
+	vec3 ShadowRayPos = HitPos+Normal*0.01;
 	vec3 ShadowRayDir = normalize(WorldLightPosition-HitPos);
-	float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );
-	//float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
-	//Colour.xyz *= mix( ShadowMult, 1.0, Shadow );//Shadow * ShadowMult;
+	//float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );
+	float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
+	Colour.xyz *= mix( ShadowMult, 1.0, Shadow );//Shadow * ShadowMult;
 
 	gl_FragColor = Colour;
 	if ( Colour.w == 0.0 )	discard;
