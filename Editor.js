@@ -267,12 +267,15 @@ class Actor_t
 		return Gizmo.GetRenderPosition();
 	}
 	
-	GetSdf(Parameters,GizmoManager)
+	GetSdf(Parameters,VariableName,GizmoManager)
 	{
-		const Position = this.GetRenderPosition(GizmoManager);
+		let Position = this.GetRenderPosition(GizmoManager);
 		const ParamsSource = Parameters.join(',');
 		if ( !this.Shape )
 			return null;
+		
+		if ( VariableName )
+			Position = VariableName;
 		
 		return this.Shape.GetSdf( ParamsSource, Position );
 	}
@@ -331,14 +334,24 @@ class SceneManager_t
 		return Uniforms;
 	}
 	
-	GetSdfMapSource(GizmoManager)
+	GetSdfSource(GizmoManager)
 	{
+		let Globals = [];
 		//	need to manage material uniforms here
 		function ActorToSdf(Actor)
 		{
 		//d = Closest( d, dm_t(sdSphere( Position, vec4(0,0,0,0.2) )),Mat_Object0) )
-		
-			let Sdf = Actor.GetSdf([`Position`],GizmoManager);
+			let VariableName = `${Actor.Name}_Position_`;
+			let Sdf = Actor.GetSdf([`Position`],VariableName,GizmoManager);
+			
+			if ( VariableName )
+			{
+				//	step/version 1, pos as constant
+				const [x,y,z] = Actor.GetRenderPosition(GizmoManager);
+				const Global = `const vec3 ${VariableName} = vec3( ${x}, ${y}, ${z} );`
+				Globals.push(Global);
+			}
+			
 			const Material = `Mat_Object0`;
 			
 			//	if GetSdf returns an array, the last line goes in the usual distance code
@@ -356,8 +369,11 @@ class SceneManager_t
 			Source += `d = Closest( d, dm_t(${Sdf},${Material}) );`;
 			return Source;
 		}
-		let Sources = this.Actors.map( ActorToSdf );
-		let Source = Sources.join('');	//	could use \n for nicer code, but dont add to keep line numbers accurate
+		let MapSdfs = this.Actors.map( ActorToSdf );
+		
+		const Source = {};
+		Source.MapSdfs = MapSdfs;
+		Source.Globals = Globals;
 		return Source;
 	}
 	
@@ -463,8 +479,8 @@ async function RenderLoop(Canvas,GetGame)
 		{
 			try
 			{
-				const SceneSdfMap = Scene.GetSdfMapSource(Gizmos);
-				const SceneFragSource = SceneFragSourcer(SceneSdfMap);
+				const SceneSdfSource = Scene.GetSdfSource(Gizmos);
+				const SceneFragSource = SceneFragSourcer( SceneSdfSource.Globals, SceneSdfSource.MapSdfs );
 				SceneShader = Context.CreateShader( VertSource, SceneFragSource );
 			}
 			catch(e)

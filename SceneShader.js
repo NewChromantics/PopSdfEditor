@@ -1,4 +1,4 @@
-export default function(MapSource){return `
+export default function(Globals,MapSdfs){return `
 precision highp float;
 varying vec3 WorldPosition;
 varying vec4 OutputProjectionPosition;
@@ -24,6 +24,8 @@ uniform vec4 ObjectShapeParams[ObjectCount];
 
 #define FarZ		10.0
 #define MAX_STEPS	20
+
+${Globals.join('')}
 
 void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
 {
@@ -123,7 +125,7 @@ dm_t Map(vec3 Position,vec3 Dir)
 {
 	dm_t d = dm_t(999.0,Mat_None);
 	
-	${MapSource}
+	${MapSdfs.join('')}
 	
 	return d;
 }

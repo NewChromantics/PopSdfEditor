@@ -31,8 +31,7 @@ uniform vec4 AxisPositions[MAX_AXISS];	//	w = size? 0 dont render
 #define AxisSize	0.1
 #define AxisRadius	(AxisSize*0.001)
 
-//	really we should raytrace instead of step
-#define MAX_STEPS	4
+#define MAX_STEPS	10
 
 void GetMouseRay(out vec3 RayPos,out vec3 RayDir)
 {
@@ -182,7 +181,7 @@ dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 			//HitMaterial = Mat_Red;
 			break;
 		}
-		if ( StepDistanceMat.x < 0.005 )
+		if ( StepDistanceMat.x < 0.004 )
 		{
 			HitMaterial = StepDistanceMat.y;
 			break;
