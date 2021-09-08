@@ -23,6 +23,15 @@ export class GizmoManager_t
 		this.GizmoChangedQueue = new PromiseQueue('GizmoChangedQueue');
 	}
 	
+	GetBoundingBox()
+	{
+		let Size = 100;
+		const Box = {};
+		Box.Min = [-Size,-Size,-Size];
+		Box.Max = [Size,Size,Size];
+		return Box;
+	}
+	
 	async WaitForGizmoChange()
 	{
 		const ChangedGizmoName = await this.GizmoChangedQueue.WaitForNext();
