@@ -253,6 +253,92 @@ catch(e)
 {
 }
 
+function CreateShapeFromShapeTypeName(Name)
+{
+	switch (Name)
+	{
+		case 'ShapeTree':	return new ShapeTree_t();
+		case 'Box':		return new Box_t();
+		case 'Line':	return new Line_t();
+		case 'Sphere':	return new Sphere_t();
+		default:		throw `Unknown shape type ${Name}`;
+	}
+}
+
+function UpdateSceneFromTree(Scene,NewSceneJson)
+{
+	console.log(`UpdateSceneFromTree`,NewSceneJson);
+	
+	//	all keys should be actor names
+	let NewSceneActorNames = Object.keys(NewSceneJson);
+	for ( let ActorName of NewSceneActorNames )
+	{
+		const Actor = Scene.GetActor( ActorName );
+		if ( !Actor )
+			throw `Failed to find shape's actor ${ActorName} in scene`;
+		
+		//	this object is shape
+		//	but it could have had another shape dropped onto it
+		const NewShapeJson = NewSceneJson[ActorName];
+
+		//	put all shapes into a list
+		//	if there's multiple, we have to change into a tree shape
+		//	if 1, reduce to a basic shape
+		const ChildShapes = [];
+
+		//	old/root shape
+		{
+			const ShapeType = NewShapeJson.Type;
+			if ( !ShapeType )
+				throw `Expecting shape json to have a .Type`;
+			const RootShape = CreateShapeFromShapeTypeName(ShapeType);
+			ChildShapes.push(RootShape);
+		}
+
+		//	delete meta keys that can't be a shape
+		delete NewShapeJson.Type;
+		delete NewShapeJson._TreeMeta;
+		delete NewShapeJson.Operator;
+
+		//	gr: this needs to recurse...
+
+		//	the names will be lost, but we can identify them
+		const ChildShapeNames = Object.keys(NewShapeJson);
+		for ( let ChildShapeKey of ChildShapeNames )
+		{
+			const ChildShapeObject = NewShapeJson[ChildShapeKey];
+			const ShapeType = ChildShapeObject.Type;
+			if ( !ShapeType )
+				throw `Expecting shape json to have a .Type`;
+			const ChildShape = CreateShapeFromShapeTypeName(ShapeType);
+			ChildShapes.push( ChildShape );
+		}
+		
+		if ( ChildShapes.length == 0 )
+		{
+			Actor.Shape = null;
+		}
+		else if ( ChildShapes.length == 1 )
+		{
+			Actor.Shape = ChildShapes[0];
+		}
+		else
+		{
+			Actor.Shape = new ShapeTree_t();
+			for ( let ChildShape of ChildShapes )
+				Actor.Shape.AddShape(ChildShape);
+		}
+		
+		Actor.OnActorChanged('Shape');
+	}
+	
+	//	actors no longer in root	
+	let DeletedActors = Scene.Actors.filter( a => !NewSceneActorNames.includes(a.Name) );
+	let DeletedActorNames = DeletedActors.map( a => a.Name );
+	for ( let DeletedActorName of DeletedActorNames )
+		Scene.DeleteActor(DeletedActorName);
+}
+
 function UpdateTreeGui(Scene)
 {
 	if ( !SceneTree )
@@ -263,6 +349,7 @@ function UpdateTreeGui(Scene)
 		const Json = {};
 		Json._TreeMeta = {};
 		Json._TreeMeta.Draggable = true;
+		Json._TreeMeta.Droppable = true;
 		Json.Type = (Shape.constructor.name).split('_t').slice(0,-1).join('_t');
 		
 		if ( Shape.Operator )
@@ -354,6 +441,14 @@ async function RenderLoop(Canvas,GetGame)
 			SceneShader = null;
 		}
 	}
+	async function SceneUiChangedThread()
+	{
+		while( SceneTree )
+		{
+			const NewTreeJson = await SceneTree.WaitForChange();
+			UpdateSceneFromTree( Scene, NewTreeJson );
+		}
+	}
 	async function GizmoChangedThread()
 	{
 		while(Gizmos)
@@ -370,6 +465,7 @@ async function RenderLoop(Canvas,GetGame)
 			Actor.OnChanged('Position');
 		}
 	}
+	SceneUiChangedThread().catch(console.error);
 	SceneChangedThread().catch(console.error);
 	GizmoChangedThread().catch(console.error);
 	

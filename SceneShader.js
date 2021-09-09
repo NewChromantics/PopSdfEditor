@@ -76,7 +76,7 @@ dm_t Map(vec3 Position,vec3 Dir)
 {
 	dm_t d = dm_t(999.0,Mat_None);
 	
-	${MapSdfs.join('')}
+	${MapSdfs.join('\n')}
 	
 	return d;
 }

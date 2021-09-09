@@ -15,7 +15,7 @@ function PositionToString(Position)
 
 export class Box_t
 {
-	constructor(Sizex,Sizey,Sizez)
+	constructor(Sizex=1,Sizey=1,Sizez=1)
 	{
 		this.Size = [Sizex,Sizey,Sizez];
 	}
@@ -24,9 +24,9 @@ export class Box_t
 	GetSdf(Parameters,Position)
 	{
 		Position = PositionToString(Position);
-		let rx = this.Size[0] / 2;
-		let ry = this.Size[1] / 2;
-		let rz = this.Size[2] / 2;
+		let rx = (this.Size[0] / 2).toFixed(5);
+		let ry = (this.Size[1] / 2).toFixed(5);
+		let rz = (this.Size[2] / 2).toFixed(5);
 		let r = `vec3(${rx},${ry},${rz})`;
 		return `sdBox( ${Parameters}, ${Position}, ${r} )`;
 	}
@@ -34,7 +34,7 @@ export class Box_t
 
 export class Line_t
 {
-	constructor(Offx,Offy,Offz,Radius)
+	constructor(Offx=1,Offy=1,Offz=1,Radius=1)
 	{
 		this.EndOffset = [Offx,Offy,Offz];
 		this.Radius = Radius;
@@ -44,7 +44,7 @@ export class Line_t
 	{
 		Position = PositionToString(Position);
 		let Offset = PositionToString(this.EndOffset);
-		let r = this.Radius;
+		let r = this.Radius.toFixed(5);
 		let s = Position;
 		let e = `${Position} + ${Offset}`;
 		return `sdCapsule( ${Parameters}, ${s}, ${e}, ${r} )`;
@@ -53,7 +53,7 @@ export class Line_t
 
 export class Sphere_t
 {
-	constructor(SphereRadius)
+	constructor(SphereRadius=1)
 	{
 		this.Radius = SphereRadius;
 	}
@@ -61,7 +61,7 @@ export class Sphere_t
 	GetSdf(Parameters,Position)
 	{
 		Position = PositionToString(Position);
-		let r = this.Radius;
+		let r = this.Radius.toFixed(5);
 		let s = `vec4(${Position},${r})`;
 		return `sdSphere( ${Parameters}, ${s} )`;
 	}
@@ -99,6 +99,8 @@ export class ShapeTree_t
 			let ChildPos = PositionToString(Shape.Offset );
 			let Pos = `(${ParentPos} + ${ChildPos})`;
 			let Sdf = Shape.Shape.GetSdf( Parameters, Pos );
+			if ( !Sdf )
+				return;
 			if ( typeof Sdf == typeof '' )
 			{
 				ChildSdfValues.push( Sdf );

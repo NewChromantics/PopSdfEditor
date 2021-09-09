@@ -71,6 +71,12 @@ export class SceneManager_t
 		return this.Actors.find( a => a.Name == Name );
 	}
 	
+	DeleteActor(Name)
+	{
+		this.Actors = this.Actors.filter( a => a.Name != Name );
+		this.SceneChangedQueue.Push('DeletedActor');
+	}
+	
 	GetLightPosition(GizmoManager)
 	{
 		const Gizmo = GizmoManager.GetGizmo('Light', this.WorldLightPosition );
@@ -196,6 +202,7 @@ export class SceneManager_t
 	{
 		this.Actors.push(Actor);
 		Actor.OnActorChanged = this.OnActorChanged.bind(this);
+		this.SceneChangedQueue.Push('AddedActor');
 		return Actor;
 	}
 }
