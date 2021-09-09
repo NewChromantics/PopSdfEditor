@@ -88,7 +88,10 @@ export class ShapeTree_t
 		if ( !this.Shapes.length )
 			return null;
 		
-		function GetShapeSdf(Shape)
+		const ChildPreambles = [];
+		const ChildSdfValues = [];	//	could be a call, could be a variable (in preamble)
+		
+		function EnumShapeSdf(Shape)
 		{
 			//	hmm, does this work, propogating a string down? (it might do... varname + vec3() + vec3())
 			//let Pos = Add3( Position, Shape.Offset );
@@ -96,20 +99,29 @@ export class ShapeTree_t
 			let ChildPos = PositionToString(Shape.Offset );
 			let Pos = `(${ParentPos} + ${ChildPos})`;
 			let Sdf = Shape.Shape.GetSdf( Parameters, Pos );
-			return Sdf; 
+			if ( typeof Sdf == typeof '' )
+			{
+				ChildSdfValues.push( Sdf );
+			}
+			else
+			{
+				ChildPreambles.push( Sdf[0] );
+				ChildSdfValues.push( Sdf[1] );
+			}
 		}
-		const ShapeSdfs = this.Shapes.map( GetShapeSdf );
-
+		this.Shapes.forEach(EnumShapeSdf);
+		
 		let DistanceVar = Math.floor(Math.random()*9999);
 		DistanceVar = `d_${DistanceVar}`;
 		let Prefix = 
 		`
-		float ${DistanceVar} = ${ShapeSdfs[0]};
+		${ChildPreambles.join('')}
+		float ${DistanceVar} = ${ChildSdfValues[0]};
 		`;
-		for ( let s=1;	s<ShapeSdfs.length;	s++ )
+		for ( let s=1;	s<ChildSdfValues.length;	s++ )
 		{
 			Prefix += `
-			${DistanceVar} = opSmoothUnion( ${DistanceVar}, ${ShapeSdfs[s]}, ${this.Smooth} );
+			${DistanceVar} = opSmoothUnion( ${DistanceVar}, ${ChildSdfValues[s]}, ${this.Smooth} );
 			`;
 		}
 		
@@ -122,5 +134,6 @@ export class ShapeTree_t
 		SubShape.Shape = Shape;
 		SubShape.Offset = Offset;
 		this.Shapes.push(SubShape);
+		return SubShape.Shape;
 	}
 }
