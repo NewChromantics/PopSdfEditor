@@ -9,7 +9,7 @@ import {CreateCubeGeometry} from './PopEngineCommon/CommonGeometry.js'
 import Pop from './PopEngineCommon/PopEngine.js'
 import {CreatePromise} from './PopEngineCommon/PopApi.js'
 import {NormalToRainbow} from './PopEngineCommon/Colour.js'
-import {Box_t,Line_t,Sphere_t,ShapeTree_t} from './Shapes.js'
+import {Shape_t,Box_t,Line_t,Sphere_t,ShapeTree_t} from './Shapes.js'
 
 import {GizmoManager_t,GizmoAxis_t,GizmoRadius_t} from './Gizmos.js'
 import {Actor_t,SceneManager_t} from './Scene.js'
@@ -265,78 +265,17 @@ function CreateShapeFromShapeTypeName(Name)
 	}
 }
 
+//	this is basically "LoadScene from serialised json", we might want 
+//	to use it later over the network
 function UpdateSceneFromTree(Scene,NewSceneJson)
 {
 	console.log(`UpdateSceneFromTree`,NewSceneJson);
-	
-	//	all keys should be actor names
-	let NewSceneActorNames = Object.keys(NewSceneJson);
-	for ( let ActorName of NewSceneActorNames )
+
+	//	convert everything back to classes where appropriate
+	for ( let Key of Object.keys(NewSceneJson) )
 	{
-		const Actor = Scene.GetActor( ActorName );
-		if ( !Actor )
-			throw `Failed to find shape's actor ${ActorName} in scene`;
-		
-		//	this object is shape
-		//	but it could have had another shape dropped onto it
-		const NewShapeJson = NewSceneJson[ActorName];
-
-		//	put all shapes into a list
-		//	if there's multiple, we have to change into a tree shape
-		//	if 1, reduce to a basic shape
-		const ChildShapes = [];
-
-		//	old/root shape
-		{
-			const ShapeType = NewShapeJson.Type;
-			if ( !ShapeType )
-				throw `Expecting shape json to have a .Type`;
-			const RootShape = CreateShapeFromShapeTypeName(ShapeType);
-			ChildShapes.push(RootShape);
-		}
-
-		//	delete meta keys that can't be a shape
-		delete NewShapeJson.Type;
-		delete NewShapeJson._TreeMeta;
-		delete NewShapeJson.Operator;
-
-		//	gr: this needs to recurse...
-
-		//	the names will be lost, but we can identify them
-		const ChildShapeNames = Object.keys(NewShapeJson);
-		for ( let ChildShapeKey of ChildShapeNames )
-		{
-			const ChildShapeObject = NewShapeJson[ChildShapeKey];
-			const ShapeType = ChildShapeObject.Type;
-			if ( !ShapeType )
-				throw `Expecting shape json to have a .Type`;
-			const ChildShape = CreateShapeFromShapeTypeName(ShapeType);
-			ChildShapes.push( ChildShape );
-		}
-		
-		if ( ChildShapes.length == 0 )
-		{
-			Actor.Shape = null;
-		}
-		else if ( ChildShapes.length == 1 )
-		{
-			Actor.Shape = ChildShapes[0];
-		}
-		else
-		{
-			Actor.Shape = new ShapeTree_t();
-			for ( let ChildShape of ChildShapes )
-				Actor.Shape.AddShape(ChildShape);
-		}
-		
-		Actor.OnActorChanged('Shape');
+		console.log(Key);
 	}
-	
-	//	actors no longer in root	
-	let DeletedActors = Scene.Actors.filter( a => !NewSceneActorNames.includes(a.Name) );
-	let DeletedActorNames = DeletedActors.map( a => a.Name );
-	for ( let DeletedActorName of DeletedActorNames )
-		Scene.DeleteActor(DeletedActorName);
 }
 
 function UpdateTreeGui(Scene)
@@ -344,40 +283,91 @@ function UpdateTreeGui(Scene)
 	if ( !SceneTree )
 		return;
 	
-	function ShapeToJson(Shape)
+	//	copy the scene
+	const Json = Object.assign({},Scene);
+/*
+	function Ignore(Key,Obj)
 	{
-		const Json = {};
-		Json._TreeMeta = {};
-		Json._TreeMeta.Draggable = true;
-		Json._TreeMeta.Droppable = true;
-		Json.Type = (Shape.constructor.name).split('_t').slice(0,-1).join('_t');
-		
-		if ( Shape.Operator )
-			Json.Operator = Shape.Operator;
-		
-		if ( Shape.Shapes )
+		function ShouldIgnore()
 		{
-			let SubShapeJsons = Shape.Shapes.map( ss => ShapeToJson(ss.Shape) );
-			//	need to be an array to allow reordering (gr:do we care about order?)
-			//Json.Children = SubShapeJsons;
-			Object.assign( Json, SubShapeJsons );	//	each turns into #0 #1 etc
+			if ( Obj instanceof PromiseQueue )
+				return true;
+			if ( Key == 'WorldLightPosition' )
+				return true;
+		}
+		if ( !ShouldIgnore() )
+			return false;
 			
+		delete Json[Key];
+		return true;
+	}
+	*/
+	
+	//	insert meta, remove things we send to the treeview etc
+	function Tweak(Node,Key,Parent)
+	{
+		if ( Node instanceof PromiseQueue )
+		{
+			delete Parent[Key];
+			return;
 		}
 		
-		return Json;
+		//	add tree meta
+		//	note; we dont want to modify the original here!
+		if ( Node instanceof Shape_t )
+		{
+			const OriginalShape = Node;
+			Parent[Key] = Node = Object.assign({},Node); 
+			Node._TreeMeta = {};
+			Node._TreeMeta.Draggable = true;
+			Node._TreeMeta.Droppable = true;
+			Node._TreeMeta.KeyAsLabel = 'ShapeType';
+			Node._TreeMeta.Ignore = ['ShapeType'];
+			Node._TreeMeta.Collapsed = true;
+			Node.ShapeType = OriginalShape.constructor.name;
+		}
+		
+		if ( Node instanceof Actor_t )
+		{
+			Parent[Key] = Node = Object.assign({},Node); 
+			Node._TreeMeta = {};
+			Node._TreeMeta.Droppable = true;
+			//	hide properties
+			Node._TreeMeta.Ignore = ['Name','Specular','Colour','Position'];
+			Node._TreeMeta.KeyAsLabel = 'Name';
+		}
+		
+		if ( Key == 'WorldLightPosition' )
+		{
+			//	doesnt work as we're adding a key to an array
+			//	and it gets lost. But we dont want to convert toan object...
+			Node._TreeMeta = {};
+			Node._TreeMeta.Collapsed = true;
+		}
+		
+		//	recurse through tree
+		if ( typeof Node == typeof {} )
+		{
+			//	make copies so the calls above dont modify the original parent when they re-assign objects
+			if ( Parent )
+			{
+				if ( Array.isArray(Node) )
+					Parent[Key] = Node = Node.slice();
+				else
+					Parent[Key] = Node = Object.assign({},Node);
+			}
+				 
+			for ( let [ChildKey,ChildNode] of Object.entries(Node) )
+			{
+				Tweak(ChildNode,ChildKey,Node);
+			}
+		}
 	}
 	
-	//	get a tree of shapes for v1
-	const SceneJson = {};
-	for ( let Actor of Scene.Actors )
-	{
-		let ActorJson = ShapeToJson( Actor.Shape );
-		//ActorJson.Position = Actor.Position.map(f=>f.toFixed(3)).join(', ');
-		//ActorJson.ShapeType = (Actor.Shape.constructor.name).split('_t').slice(0,-1).join('_t');
-		SceneJson[Actor.Name] = ActorJson;
-	}
+	Tweak(Json,null,null);
 	
-	SceneTree.SetValue(SceneJson);
+	
+	SceneTree.SetValue(Json);
 }
 
 

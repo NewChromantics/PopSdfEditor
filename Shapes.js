@@ -1,6 +1,13 @@
 import {MatrixInverse4x4,Normalise3,Add3,Distance3,GetRayPositionAtTime,GetRayRayIntersection3} from './PopEngineCommon/Math.js'
 
-export default ``;
+export default function()
+{
+	//	make a shape factory?
+};
+
+export class Shape_t
+{
+}
 
 //	if the input position is a string, it's already a variable
 //	if not, convert to vec3
@@ -13,10 +20,11 @@ function PositionToString(Position)
 	return `vec3(${x},${y},${z})`;
 }
 
-export class Box_t
+export class Box_t extends Shape_t
 {
 	constructor(Sizex=1,Sizey=1,Sizez=1)
 	{
+		super();
 		this.Size = [Sizex,Sizey,Sizez];
 	}
 	
@@ -32,10 +40,11 @@ export class Box_t
 	}
 }
 
-export class Line_t
+export class Line_t extends Shape_t
 {
 	constructor(Offx=1,Offy=1,Offz=1,Radius=1)
 	{
+		super();
 		this.EndOffset = [Offx,Offy,Offz];
 		this.Radius = Radius;
 	}
@@ -51,10 +60,11 @@ export class Line_t
 	}
 }
 
-export class Sphere_t
+export class Sphere_t extends Shape_t
 {
 	constructor(SphereRadius=1)
 	{
+		super();
 		this.Radius = SphereRadius;
 	}
 	
@@ -74,10 +84,11 @@ Operators.AND = 'AND';
 Operators.NOT = 'NOT';
 
 //	tree of shapes joined with operators
-export class ShapeTree_t
+export class ShapeTree_t extends Shape_t
 {
 	constructor()
 	{
+		super();
 		this.Smooth = 0.1;
 		this.Shapes = [];
 		this.Operator = Operators.OR;
