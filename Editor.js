@@ -82,10 +82,12 @@ function Range(Min,Max,Value)
 function GetMouseValue(x,y,Button)
 {	
 	const Rect = {};
-	Rect.left = LastScreenRect[0];
-	Rect.right = LastScreenRect[0] + LastScreenRect[2];
-	Rect.top = LastScreenRect[1];
-	Rect.bottom = LastScreenRect[1] + LastScreenRect[3];
+	//	gr: screen rect is window space
+	//		xy is renderview space, so ignore x/y
+	Rect.left = 0
+	Rect.right = Rect.left + LastScreenRect[2];
+	Rect.top = 0;
+	Rect.bottom = Rect.top + LastScreenRect[3];
 	const ClientX = x;
 	const ClientY = y;
 	const u = Range( Rect.left, Rect.right, ClientX ); 
