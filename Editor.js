@@ -244,6 +244,55 @@ function GetRayFromCameraUv(uv)
 }
 
 
+let SceneTree = null;
+try
+{
+	SceneTree = new Pop.Gui.Tree(null,'SceneTree');
+}
+catch(e)
+{
+}
+
+function UpdateTreeGui(Scene)
+{
+	if ( !SceneTree )
+		return;
+	
+	function ShapeToJson(Shape)
+	{
+		const Json = {};
+		Json._TreeMeta = {};
+		Json._TreeMeta.Draggable = true;
+		Json.Type = (Shape.constructor.name).split('_t').slice(0,-1).join('_t');
+		
+		if ( Shape.Operator )
+			Json.Operator = Shape.Operator;
+		
+		if ( Shape.Shapes )
+		{
+			let SubShapeJsons = Shape.Shapes.map( ss => ShapeToJson(ss.Shape) );
+			//	need to be an array to allow reordering (gr:do we care about order?)
+			//Json.Children = SubShapeJsons;
+			Object.assign( Json, SubShapeJsons );	//	each turns into #0 #1 etc
+			
+		}
+		
+		return Json;
+	}
+	
+	//	get a tree of shapes for v1
+	const SceneJson = {};
+	for ( let Actor of Scene.Actors )
+	{
+		let ActorJson = ShapeToJson( Actor.Shape );
+		//ActorJson.Position = Actor.Position.map(f=>f.toFixed(3)).join(', ');
+		//ActorJson.ShapeType = (Actor.Shape.constructor.name).split('_t').slice(0,-1).join('_t');
+		SceneJson[Actor.Name] = ActorJson;
+	}
+	
+	SceneTree.SetValue(SceneJson);
+}
+
 
 async function RenderLoop(Canvas,GetGame)
 {
@@ -282,7 +331,7 @@ async function RenderLoop(Canvas,GetGame)
 	Actor4.Shape = new ShapeTree_t();
 	Actor4.Shape.AddShape( new Box_t(0.1,0.2,0.1) );
 	Actor4.Shape.AddShape( new Line_t(0.1,0.2,0.1,0.04), [0.1,0.1,0.1] );
-	Actor4.Shape.AddShape( new Sphere_t(0.1), [0.0,-0.2,-0.1] );
+	Actor4.Shape.AddShape( new ShapeTree_t() ).AddShape( new Sphere_t(0.1), [0.0,-0.2,-0.1] );
 	Actor4.Colour = [0.5,0,0];
 	Actor4.Position[0] = 0.0;
 
@@ -290,10 +339,13 @@ async function RenderLoop(Canvas,GetGame)
 	
 	async function SceneChangedThread()
 	{
+		UpdateTreeGui(Scene);
+			
 		while(Scene)
 		{
 			const ChangedKey = await Scene.WaitForChange();
-			
+			UpdateTreeGui(Scene);
+				
 			//	dont need to invalidate SDF if we're not baking positions
 			if ( !BakedScenePositions && ChangedKey == 'Position' )
 				continue;
