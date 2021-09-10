@@ -8,6 +8,10 @@ export default function()
 
 export class Shape_t
 {
+	constructor()
+	{
+		this.Position = [0.0,0.0,0];
+	}
 }
 
 //	if the input position is a string, it's already a variable
@@ -105,17 +109,16 @@ export class ShapeTree_t extends Shape_t
 		
 		function EnumShapeSdf(Shape)
 		{
-			if ( !Shape.Shape )
-				return;
 			//	not been converted to type
-			if ( !Shape.Shape.GetSdf )
+			if ( !Shape.GetSdf )
+			{
+				console.warn(`Found shape that's not a shape_t`);
 				return;
-			//	hmm, does this work, propogating a string down? (it might do... varname + vec3() + vec3())
-			//let Pos = Add3( Position, Shape.Offset );
+			}
 			let ParentPos = PositionToString(Position);
-			let ChildPos = PositionToString(Shape.Offset );
+			let ChildPos = PositionToString(Shape.Position );
 			let Pos = `(${ParentPos} + ${ChildPos})`;
-			let Sdf = Shape.Shape.GetSdf( Parameters, Pos );
+			let Sdf = Shape.GetSdf( Parameters, Pos );
 			if ( !Sdf )
 				return;
 			if ( typeof Sdf == typeof '' )
@@ -151,13 +154,10 @@ export class ShapeTree_t extends Shape_t
 		return [Prefix,DistanceVar];
 	}
 	
-	AddShape(Shape,Offset=[0,0,0])
+	AddShape(Shape)
 	{
-		const SubShape = {};
-		SubShape.Shape = Shape;
-		SubShape.Offset = Offset;
-		this.Shapes.push(SubShape);
-		return SubShape.Shape;
+		this.Shapes.push(Shape);
+		return Shape;
 	}
 }
 

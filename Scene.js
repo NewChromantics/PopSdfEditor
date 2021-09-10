@@ -9,11 +9,19 @@ export class Actor_t
 		this.Name = Name;
 		this.OnActorChanged = function(){};
 
-		this.Position = [0.0,0.0,0];
 		this.Colour = [0,0.5,0.5,1];
 		this.Specular = 1;
 
 		this.Shape = null;
+	}
+
+	get Position()
+	{
+		return this.Shape.Position;
+	}
+	set Position(NewPosition)
+	{
+		this.Shape.Position = NewPosition.slice();	//	should overwrite values instead of replacing array?
 	}
 		
 	OnChanged(Change)

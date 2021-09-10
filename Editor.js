@@ -368,7 +368,7 @@ function UpdateTreeGui(Scene)
 			Node._TreeMeta.Droppable = true;
 			Node._TreeMeta.KeyAsLabel = 'ShapeType';
 			Node._TreeMeta.Ignore = ['ShapeType'];
-			Node._TreeMeta.Collapsed = true;
+			//Node._TreeMeta.Collapsed = true;
 			Node.ShapeType = OriginalShape.constructor.name;
 		}
 		
@@ -437,17 +437,17 @@ async function RenderLoop(Canvas,GetGame)
 	
 	let Actor1 = Scene.AddActor( new Actor_t('Sphere1') );
 	Actor1.Shape = new Sphere_t(0.1);
-	Actor1.Position[0]+=0.8;
+	Actor1.Shape.Position[0]+=0.8;
 	
 	let Actor2 = Scene.AddActor( new Actor_t('Sphere2') );
 	Actor2.Shape = new Box_t(0.1,0.2,0.1);
 	Actor2.Colour = [0.5,0.5,0];
-	Actor2.Position[0]+=0.4;
+	Actor2.Shape.Position[0]+=0.4;
 	
 	let Actor3 = Scene.AddActor( new Actor_t('Sphere3') );
 	Actor3.Shape = new Line_t(0.1,0.2,0.1,0.04);
 	Actor3.Colour = [0.5,0,0.5];
-	Actor3.Position[0]-=0.4;
+	Actor3.Shape.Position[0]-=0.4;
 
 	let Actor4 = Scene.AddActor( new Actor_t('Tree') );
 	Actor4.Shape = new ShapeTree_t();
@@ -455,7 +455,7 @@ async function RenderLoop(Canvas,GetGame)
 	Actor4.Shape.AddShape( new Line_t(0.1,0.2,0.1,0.04), [0.1,0.1,0.1] );
 	Actor4.Shape.AddShape( new ShapeTree_t() ).AddShape( new Sphere_t(0.1), [0.0,-0.2,-0.1] );
 	Actor4.Colour = [0.5,0,0];
-	Actor4.Position[0] = 0.0;
+	Actor4.Shape.Position[0] = 0.0;
 
 	const BakedScenePositions = false;
 	
