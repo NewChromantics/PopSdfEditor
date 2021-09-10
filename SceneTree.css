@@ -1,0 +1,17 @@
+@import url("PopEngineCommon/WebComponent_TreeView/TreeView.css");
+
+
+*[ShapeType=Box_t]
+{
+	background:	#fdd;
+}
+
+*[ShapeType=Sphere_t]
+{
+	background:	#dfd;
+}
+
+*[ShapeType=Line_t]
+{
+	background:	#ddf;
+}
