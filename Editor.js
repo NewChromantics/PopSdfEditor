@@ -265,11 +265,22 @@ function CreateShapeFromShapeTypeName(Name)
 	}
 }
 
+function GetActorsFromAddresses(Scene,Addresses)
+{
+	console.log(`GetActorsFromAddresses`,Addresses);
+	return [];
+}
+
+
 //	this is basically "LoadScene from serialised json", we might want 
 //	to use it later over the network
-function UpdateSceneFromTree(Scene,NewSceneJson)
+function UpdateSceneFromTree(Scene,NewSceneJson,Change)
 {
-	console.log(`UpdateSceneFromTree`,NewSceneJson);
+	console.log(`UpdateSceneFromTree`,NewSceneJson,Change);
+	
+	//	if we detect a move of a shape, try and retain it's world position
+	//if ( Change && Change.
+	
 
 	let NewActors = [];
 	function ConvertToActor(Json)
@@ -480,8 +491,19 @@ async function RenderLoop(Canvas,GetGame)
 	{
 		while( SceneTree )
 		{
-			const NewTreeJson = await SceneTree.WaitForChange();
-			UpdateSceneFromTree( Scene, NewTreeJson );
+			const Change = await SceneTree.WaitForChange();
+			const NewTreeJson = SceneTree.GetValue();
+			UpdateSceneFromTree( Scene, NewTreeJson, Change );
+		}
+	}
+	async function SceneUiSelectionChangedThread()
+	{
+		while( SceneTree )
+		{
+			const Selected = await SceneTree.WaitForSelectionChange();
+			const Actors = GetActorsFromAddresses(Scene,Selected);
+			//	turn off gizmos, turn on for these actors
+			console.log(`Selected actors x${Actors.length}`,Actors);
 		}
 	}
 	async function GizmoChangedThread()
@@ -500,6 +522,7 @@ async function RenderLoop(Canvas,GetGame)
 			Actor.OnChanged('Position');
 		}
 	}
+	SceneUiSelectionChangedThread().catch(console.error);
 	SceneUiChangedThread().catch(console.error);
 	SceneChangedThread().catch(console.error);
 	GizmoChangedThread().catch(console.error);
