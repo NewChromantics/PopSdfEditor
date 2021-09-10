@@ -5,6 +5,7 @@ export default function()
 	//	make a shape factory?
 };
 
+
 export class Shape_t
 {
 }
@@ -89,7 +90,7 @@ export class ShapeTree_t extends Shape_t
 	constructor()
 	{
 		super();
-		this.Smooth = 0.1;
+		this.Smooth = 0.0;
 		this.Shapes = [];
 		this.Operator = Operators.OR;
 	}
@@ -104,6 +105,11 @@ export class ShapeTree_t extends Shape_t
 		
 		function EnumShapeSdf(Shape)
 		{
+			if ( !Shape.Shape )
+				return;
+			//	not been converted to type
+			if ( !Shape.Shape.GetSdf )
+				return;
 			//	hmm, does this work, propogating a string down? (it might do... varname + vec3() + vec3())
 			//let Pos = Add3( Position, Shape.Offset );
 			let ParentPos = PositionToString(Position);
@@ -124,6 +130,9 @@ export class ShapeTree_t extends Shape_t
 		}
 		this.Shapes.forEach(EnumShapeSdf);
 		
+		if ( !ChildSdfValues.length )
+			return null;
+		
 		let DistanceVar = Math.floor(Math.random()*9999);
 		DistanceVar = `d_${DistanceVar}`;
 		let Prefix = 
@@ -133,8 +142,9 @@ export class ShapeTree_t extends Shape_t
 		`;
 		for ( let s=1;	s<ChildSdfValues.length;	s++ )
 		{
+			const Smoothf = this.Smooth.toFixed(4);
 			Prefix += `
-			${DistanceVar} = opSmoothUnion( ${DistanceVar}, ${ChildSdfValues[s]}, ${this.Smooth} );
+			${DistanceVar} = opSmoothUnion( ${DistanceVar}, ${ChildSdfValues[s]}, ${Smoothf} );
 			`;
 		}
 		
@@ -149,4 +159,107 @@ export class ShapeTree_t extends Shape_t
 		this.Shapes.push(SubShape);
 		return SubShape.Shape;
 	}
+}
+
+//	auto detect shapes from json and create instances
+export function JsonToShape(ShapeJson)
+{
+	if ( !ShapeJson )
+		return null;
+	if ( typeof ShapeJson != typeof {} )
+		return null;
+
+
+
+	const JsonKeys = Object.keys( ShapeJson );
+	function HasAllKeys(Type)
+	{
+		const TypeKeys = Object.keys( new Type );
+		//const JsonKeys = Object.keys( ShapeJson );
+		for ( let RequiredKey of TypeKeys )
+			if ( !JsonKeys.includes(RequiredKey) )
+				return false;
+		return true;
+	}
+	const ShapeTypes = [Box_t,Sphere_t,Line_t,ShapeTree_t];
+
+
+
+	//	first look for children, then if we HAVE children, we have to turn into a tree, even if we're not one
+	let ChildShapes = [];
+
+	let PotentialChildren = [];
+	if ( Array.isArray(ShapeJson) )
+	{
+		PotentialChildren = ShapeJson;
+		//	gr: can use this for both arrays and objects!
+		PotentialChildren = Object.values(ShapeJson);
+	}
+	else
+	{
+		PotentialChildren = Object.values(ShapeJson);
+	}	
+	ChildShapes = PotentialChildren.map(JsonToShape);
+	ChildShapes = ChildShapes.filter( s => s!=null );
+
+
+
+	
+	let RootShape;
+	if ( !Array.isArray(ShapeJson) )	//	dont need this, but quicker for debugging (and probably saving a load of cpu time)
+	{	
+		for ( let ShapeType of ShapeTypes )
+		{
+			if ( !HasAllKeys(ShapeType) )
+				continue;
+			RootShape = new ShapeType();
+			
+			//	gr: only assign expected keys?
+			//	gr: probably dont wanna lose meta, but for clarity, for now...
+			//Object.assign( RootShape, ShapeJson );
+			const TypeKeys = Object.keys(RootShape);
+			for ( let Key of TypeKeys )
+			{
+				if ( Key != 'Shapes' )
+					RootShape[Key] = ShapeJson[Key];
+			}
+		}
+	}
+	
+	if ( !RootShape && ChildShapes.length==0 )
+		return null;
+	
+	//	if I am an empty shape tree, collapse (just remove it)
+	//	may just remove from ShapeTypes? but we may want to keep some meta
+	if ( RootShape instanceof ShapeTree_t )
+	{
+		//	this will always be the case with a new instance...
+		if ( RootShape.Shapes.length == 0 )
+			RootShape = null;
+	}
+	
+	if ( !RootShape && ChildShapes.length==1 )
+		return ChildShapes[0];
+	
+	//	do we need to be a tree?
+	let RequireTree = (RootShape instanceof ShapeTree_t) || ( ChildShapes.length>0);
+	
+	if ( RequireTree && !(RootShape instanceof ShapeTree_t) )
+	{
+		//	convert to tree
+		//	todo: if tree has non-basic union, we can't just move root into children
+		//		but if we're in this situation... probably doesnt anyway?
+		//		unless we drop a tree onto a basic shape
+		ChildShapes.push( RootShape );
+		RootShape = new ShapeTree_t();
+	}
+	
+	for ( let ChildShape of ChildShapes )
+	{
+		if ( ChildShape == null )
+			continue;
+		RootShape.AddShape(ChildShape);
+	}
+	
+	return RootShape;
 }

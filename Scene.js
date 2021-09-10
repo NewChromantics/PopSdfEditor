@@ -159,7 +159,9 @@ export class SceneManager_t
 			//	setup position/map/sdf
 			let PositionVariableName = BakeValues ? null : ActorUniforms.Position.Uniform;
 			let Sdf = Actor.GetSdf([`Position`],PositionVariableName,GizmoManager);
-			
+			if ( !Sdf )
+				return '';
+				
 			if ( PositionVariableName )
 			{
 				//	step/version 1, pos as constant

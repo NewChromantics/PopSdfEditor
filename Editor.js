@@ -9,7 +9,7 @@ import {CreateCubeGeometry} from './PopEngineCommon/CommonGeometry.js'
 import Pop from './PopEngineCommon/PopEngine.js'
 import {CreatePromise} from './PopEngineCommon/PopApi.js'
 import {NormalToRainbow} from './PopEngineCommon/Colour.js'
-import {Shape_t,Box_t,Line_t,Sphere_t,ShapeTree_t} from './Shapes.js'
+import {Shape_t,Box_t,Line_t,Sphere_t,ShapeTree_t,JsonToShape} from './Shapes.js'
 
 import {GizmoManager_t,GizmoAxis_t,GizmoRadius_t} from './Gizmos.js'
 import {Actor_t,SceneManager_t} from './Scene.js'
@@ -271,11 +271,56 @@ function UpdateSceneFromTree(Scene,NewSceneJson)
 {
 	console.log(`UpdateSceneFromTree`,NewSceneJson);
 
-	//	convert everything back to classes where appropriate
-	for ( let Key of Object.keys(NewSceneJson) )
+	let NewActors = [];
+	function ConvertToActor(Json)
 	{
-		console.log(Key);
+		//	extract shapes that may have been assigned
+		let Shapes = [];
+		for ( let [ShapeKey,ShapeJson] of Object.entries(Json) )
+		{
+			let Shape = JsonToShape(ShapeJson);
+			if ( !Shape )
+				continue;
+			//	extracted a shape, delete the key so we dont put it back on
+			Shapes.push(Shape);
+			delete Json[ShapeKey];
+		}
+		Shapes = Shapes.filter( s => s!=null );
+
+		let Actor = new Actor_t();
+		Object.assign(Actor,Json);
+		
+		
+		//	delete actor if its lsot its shapes
+		if ( Shapes.length == 0 )
+			return null;
+		if ( Shapes.length == 1 )
+			Actor.Shape = Shapes[0];
+		else
+		{
+			Actor.Shape = new ShapeTree_t();
+			Shapes.forEach( s => Actor.Shape.AddShape(s) );
+		}
+		return Actor;
 	}
+
+	//	convert everything back to classes where appropriate
+	for ( let [Key,Value] of Object.entries(NewSceneJson) )
+	{
+		if ( Key == 'Actors' )
+		{
+			let ValueActors = NewSceneJson[Key].map(ConvertToActor);
+			NewActors.push(...ValueActors);
+			NewSceneJson[Key] = [];
+		}
+	}
+	
+	Object.assign(Scene,NewSceneJson);
+	
+	NewActors = NewActors.filter( a=> a!=null );
+	NewActors.forEach( a => Scene.AddActor(a) );
+	
+	UpdateTreeGui(Scene);
 }
 
 function UpdateTreeGui(Scene)
@@ -533,7 +578,7 @@ async function RenderLoop(Canvas,GetGame)
 		const SceneCmd = await RenderScene();
 		const GizmoCmd = RenderGizmos();
 	
-		const RenderCommands = [ClearCmd,SceneCmd,GizmoCmd];
+		const RenderCommands = [ClearCmd,SceneCmd,GizmoCmd].filter( c => c!=null );
 		await Context.Render(RenderCommands);
 		
 	}
