@@ -206,18 +206,6 @@ function BindEvents(RenderView)
 	RenderView.OnMouseMove = OnMouseMove;
 	RenderView.OnMouseUp = OnMouseUp;
 	RenderView.OnMouseScroll = OnMouseScroll;
-/*
-	Element.addEventListener('mousemove', MouseMove );
-	Element.addEventListener('wheel', MouseWheel, false );
-	Element.addEventListener('contextmenu', MouseContextMenu, false );
-	Element.addEventListener('mousedown', MouseDown, false );
-	Element.addEventListener('mouseup', MouseUp, false );
-	
-	Element.addEventListener('touchmove', MouseMove );
-	Element.addEventListener('touchstart', MouseDown, false );
-	Element.addEventListener('touchend', MouseUp, false );
-	Element.addEventListener('touchcancel', MouseUp, false );
-	*/
 }
 
 function GetInputRays()
