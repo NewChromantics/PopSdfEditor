@@ -178,20 +178,26 @@ export class SceneManager_t
 				const Global = `uniform vec3 ${PositionVariableName};`
 				Globals.push(Global);
 			}			
-			
-			//	if GetSdf returns an array, the last line goes in the usual distance code
-			//	the rest is prefix
-			let Prefix = '';
-			if ( Array.isArray(Sdf) )
+
+			//	if the sdf is just a string, turn it into a complex object
+			if ( Sdf instanceof Object )
 			{
-				let Var = Sdf.pop();
-				Prefix = Sdf.join('');
-				Sdf = Var;
 			}
+			else
+			{
+				const SdfObj = {};
+				SdfObj.Prefix = '';
+				SdfObj.Sdf = Sdf;
+				Sdf = SdfObj;
+			}
+
+			if ( Sdf.Globals )
+				Globals.push( ...Sdf.Globals );
 			
 			let Source = '';
-			Source += Prefix;
-			Source += `d = Closest( d, dm_t(${Sdf},${Material}) );`;
+			if ( Sdf.Prefix )
+				Source += Sdf.Prefix;
+			Source += `d = Closest( d, dm_t(${Sdf.Sdf},${Material}) );`;
 			return Source;
 		}
 		let MapSdfs = this.Actors.map( ActorToSdf.bind(this) );

@@ -15,8 +15,9 @@ uniform float TimeNormal;
 #define Mat_None	0.0
 #define PinkColour		vec4(0.8,0,0.8,1.0)
 
-#define FarZ		10.0
-#define MAX_STEPS	20
+#define FarZ			20.0
+#define MAX_STEPS		40
+#define CLOSE_ENOUGH	0.002
 
 ${Globals.join('')}
 
@@ -117,7 +118,7 @@ dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 			//HitMaterial = Mat_Red;
 			break;
 		}
-		if ( StepDistanceMat.x < 0.005 )
+		if ( StepDistanceMat.x < CLOSE_ENOUGH )
 		{
 			HitMaterial = StepDistanceMat.y;
 			break;

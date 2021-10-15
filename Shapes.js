@@ -17,7 +17,7 @@ export class Shape_t
 
 //	if the input position is a string, it's already a variable
 //	if not, convert to vec3
-function PositionToString(Position)
+export function PositionToString(Position)
 {
 	if ( typeof Position == typeof '' )
 		return Position;
@@ -128,8 +128,8 @@ export class ShapeTree_t extends Shape_t
 			}
 			else
 			{
-				ChildPreambles.push( Sdf[0] );
-				ChildSdfValues.push( Sdf[1] );
+				ChildPreambles.push( Sdf.Prefix );
+				ChildSdfValues.push( Sdf.Sdf );
 			}
 		}
 		this.Shapes.forEach(EnumShapeSdf);
@@ -152,7 +152,10 @@ export class ShapeTree_t extends Shape_t
 			`;
 		}
 		
-		return [Prefix,DistanceVar];
+		const SdfData = {};
+		SdfData.Prefix = Prefix;
+		SdfData.Sdf = DistanceVar;
+		return SdfData;
 	}
 	
 	AddShape(Shape)

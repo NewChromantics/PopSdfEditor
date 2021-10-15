@@ -10,6 +10,7 @@ import Pop from './PopEngineCommon/PopEngine.js'
 import {CreatePromise} from './PopEngineCommon/PopApi.js'
 import {NormalToRainbow} from './PopEngineCommon/Colour.js'
 import {Shape_t,Box_t,Line_t,Sphere_t,ShapeTree_t,JsonToShape} from './Shapes.js'
+import {Fractal_t} from './ShapeFractal.js'
 
 import {GizmoManager_t,GizmoAxis_t,GizmoRadius_t} from './Gizmos.js'
 import {Actor_t,SceneManager_t} from './Scene.js'
@@ -249,6 +250,7 @@ function CreateShapeFromShapeTypeName(Name)
 		case 'Box':		return new Box_t();
 		case 'Line':	return new Line_t();
 		case 'Sphere':	return new Sphere_t();
+		case 'Fractal':	return new Fractal_t();
 		default:		throw `Unknown shape type ${Name}`;
 	}
 }
@@ -479,6 +481,10 @@ async function RenderLoop(Canvas,GetGame)
 	const Gizmos = new GizmoManager_t();
 	const Scene = new SceneManager_t();
 	
+	let ActorF = Scene.AddActor( new Actor_t('Fractal') );
+	ActorF.Shape = new Fractal_t(0.1);
+	ActorF.Shape.Position[0]+=0.8;
+	/*
 	let Actor1 = Scene.AddActor( new Actor_t('Sphere1') );
 	Actor1.Shape = new Sphere_t(0.1);
 	Actor1.Shape.Position[0]+=0.8;
@@ -500,7 +506,7 @@ async function RenderLoop(Canvas,GetGame)
 	Actor4.Shape.AddShape( new ShapeTree_t() ).AddShape( new Sphere_t(0.1), [0.0,-0.2,-0.1] );
 	Actor4.Colour = [0.5,0,0];
 	Actor4.Shape.Position[0] = 0.0;
-
+*/
 	const BakedScenePositions = false;
 	
 	async function SceneChangedThread()
