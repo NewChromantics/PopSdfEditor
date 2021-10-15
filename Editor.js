@@ -327,25 +327,70 @@ function UpdateTreeGui(Scene)
 	if ( !SceneTree )
 		return;
 	
+	//	gr: simpler method; just a tree of shapes with hidden ids where a shape is attached to an actor
+	let Json = {};
+	
+	Json.Shapes = [];
+	
+	function GetShapeNode(Shape)
+	{
+		const Node = {};
+		Node.ShapeType = Shape.constructor.name;
+		
+		//	ui config
+		Node._TreeMeta = {};
+		Node._TreeMeta.Draggable = true;
+		Node._TreeMeta.Droppable = true;
+		Node._TreeMeta.KeyAsLabel = 'ShapeType';
+		Node._TreeMeta.Ignore = ['ShapeType','ActorName'];
+		Node._TreeMeta.Collapsed = false;
+		
+		function GetChildName(Shape)
+		{
+			let Name = Shape.constructor.name;
+			while ( Node.hasOwnProperty(Name) )
+			{
+				Name += `0`;
+			}
+			return Name;
+		}
+		
+		//	recurse tree of tree-shapes
+		if ( Shape instanceof ShapeTree_t )
+		{
+			//	we're a shape tree with no children, skip
+			if ( Shape.Shapes.length == 0 )
+				return null;
+				
+			for ( let ChildShape of Shape.Shapes )
+			{
+				const ChildName = GetChildName(ChildShape);
+				const ChildNode = GetShapeNode(ChildShape);
+				Node[ChildName] = ChildNode;
+
+				//	we're a shape tree with 1 child, just show this
+				if ( Shape.Shapes.length == 0 )
+					return null;
+			}
+		}
+		
+		return Node;
+	}
+	
+	for ( let Actor of Scene.Actors )
+	{
+		const Shape = Actor.Shape;
+		const Node = GetShapeNode(Shape);
+		
+		Node.ActorName = Actor.Name;
+		
+		Json.Shapes.push( Node );
+	}
+	
+	/*
 	//	copy the scene
 	const Json = Object.assign({},Scene);
-/*
-	function Ignore(Key,Obj)
-	{
-		function ShouldIgnore()
-		{
-			if ( Obj instanceof PromiseQueue )
-				return true;
-			if ( Key == 'WorldLightPosition' )
-				return true;
-		}
-		if ( !ShouldIgnore() )
-			return false;
-			
-		delete Json[Key];
-		return true;
-	}
-	*/
+
 	
 	//	insert meta, remove things we send to the treeview etc
 	function Tweak(Node,Key,Parent)
@@ -409,7 +454,7 @@ function UpdateTreeGui(Scene)
 	}
 	
 	Tweak(Json,null,null);
-	
+	*/
 	
 	SceneTree.SetValue(Json);
 }

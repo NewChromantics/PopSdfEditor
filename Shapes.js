@@ -14,6 +14,7 @@ export class Shape_t
 	}
 }
 
+
 //	if the input position is a string, it's already a variable
 //	if not, convert to vec3
 function PositionToString(Position)
