@@ -19,6 +19,9 @@ uniform float TimeNormal;
 #define MAX_STEPS		40
 #define CLOSE_ENOUGH	0.002
 
+float sdSphere(vec3 Position,vec4 Sphere);
+float sdBox( vec3 p, vec3 c, vec3 b );
+
 ${Globals.join('')}
 
 void GetWorldRay(out vec3 RayPos,out vec3 RayDir)
