@@ -22,7 +22,7 @@ float sdFractal(vec3 z,vec3 Transform)
 	//#define sdFrac(Vertex)	sdBox( z, Vertex, vec3(0.01) ) 
 	#define sdFrac(Vertex)	sdSphere( z, vec4( Vertex, 0.01 ) )
 	
-	#define Iterations	10
+	#define Iterations	8
 	#define Scale 2.0
 	for ( int n=0;	n<Iterations;	n++ ) 
 	{

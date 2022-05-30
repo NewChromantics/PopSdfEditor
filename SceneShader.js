@@ -15,8 +15,8 @@ uniform float TimeNormal;
 #define Mat_None	0.0
 #define PinkColour		vec4(0.8,0,0.8,1.0)
 
-#define FarZ			20.0
-#define MAX_STEPS		10
+#define FarZ			10.0
+#define MAX_STEPS		40
 #define CLOSE_ENOUGH	0.01001
 
 float sdSphere(vec3 Position,vec4 Sphere);
@@ -167,6 +167,12 @@ vec4 GetLitColour(vec3 WorldPosition,vec3 Normal,vec4 SeedColour,float Specular,
 	return vec4( Colour, SeedColour.w );
 }
 
+
+vec4 GetMaterialColour_Flat(vec3 WorldPosition,vec3 WorldNormal,float Shadow,vec4 Colour,float Specular)
+{
+	return Colour;
+}
+
 vec4 GetMaterialColour_Lit(vec3 WorldPosition,vec3 WorldNormal,float Shadow,vec4 Colour,float Specular)
 {
 	return GetLitColour(WorldPosition,WorldNormal,Colour,Specular,Shadow);
@@ -177,11 +183,17 @@ vec4 GetMaterialColour(float Material,vec3 WorldPosition,vec3 WorldNormal,float 
 	if ( Material == Mat_None )		return vec4(0,0,0,0);
 
 	${MaterialSource.join('')}
+
+	vec4 Colour = vec4(1,1,1,1);
+	vec4 ShadowColour = vec4(0,0,0,1);
+	Colour = mix( Colour, ShadowColour, Shadow );
+	return Colour;
+
 	
 	//	no material, render normal
 	WorldNormal += 1.0;
 	WorldNormal /= 2.0;
-	return vec4(WorldNormal,1.0);
+	//return vec4(WorldNormal,1.0);
 	return GetLitColour(WorldPosition,WorldNormal,PinkColour,1.0,Shadow);
 }
 
@@ -247,12 +259,12 @@ void main()
 
 	
 	float Shadowk = 2.50;
-	float ShadowMult = 0.1;
+	float ShadowMult = 0.0;
 	vec3 ShadowRayPos = HitPos+Normal*0.01;
 	vec3 ShadowRayDir = normalize(WorldLightPosition-HitPos);
 	//float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );
-	//float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
-	float Shadow = 0.0;
+	float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
+	//float Shadow = 1.0;
 
 	//	check shadow first, as we don't want specular to appear when in shadow
 	vec4 Colour = GetMaterialColour(HitDistance.w,HitPos,Normal,1.0-Shadow);

@@ -331,22 +331,24 @@ function UpdateTreeGui(Scene)
 	
 	//	gr: simpler method; just a tree of shapes with hidden ids where a shape is attached to an actor
 	let Json = {};
+	let Meta = {};
 	
-	Json.Shapes = [];
-	
-	function GetShapeNode(Shape)
+	function GetShapeNode(Shape,Parents)
 	{
+		const Name = Shape.constructor.name;
+		const Address = [...Parents,Name].join('.');
 		const Node = {};
-		Node.ShapeType = Shape.constructor.name;
+		//Node.ShapeType = Shape.constructor.name;
+		Node.Name = Name;
 		
 		//	ui config
-		Node._TreeMeta = {};
-		Node._TreeMeta.Draggable = true;
-		Node._TreeMeta.Droppable = true;
-		Node._TreeMeta.KeyAsLabel = 'ShapeType';
-		Node._TreeMeta.Ignore = ['ShapeType','ActorName'];
-		Node._TreeMeta.Collapsed = false;
-		
+		const NodeMeta = {};
+		Meta[Address] = NodeMeta;
+		NodeMeta.Draggable = true;
+		NodeMeta.Droppable = true;
+		//NodeMeta.KeyAsLabel = 'ShapeType';
+		NodeMeta.Ignore = ['Name','ShapeType','ActorName'];
+		/*
 		function GetChildName(Shape)
 		{
 			let Name = Shape.constructor.name;
@@ -375,18 +377,16 @@ function UpdateTreeGui(Scene)
 					return null;
 			}
 		}
-		
+		*/
 		return Node;
 	}
 	
 	for ( let Actor of Scene.Actors )
 	{
 		const Shape = Actor.Shape;
-		const Node = GetShapeNode(Shape);
+		const Node = GetShapeNode(Shape,[]);
 		
-		Node.ActorName = Actor.Name;
-		
-		Json.Shapes.push( Node );
+		Json[Node.Name] = Node;
 	}
 	
 	/*
@@ -484,11 +484,11 @@ async function RenderLoop(Canvas,GetGame)
 	let ActorF = Scene.AddActor( new Actor_t('Fractal') );
 	ActorF.Shape = new Fractal_t(0.1);
 	ActorF.Shape.Position[0]+=0.8;
-	/*
-	let Actor1 = Scene.AddActor( new Actor_t('Sphere1') );
-	Actor1.Shape = new Sphere_t(0.1);
-	Actor1.Shape.Position[0]+=0.8;
 	
+	let Actor1 = Scene.AddActor( new Actor_t('Sphere1') );
+	Actor1.Shape = new Sphere_t(400.1);
+	Actor1.Shape.Position[1]-=401.8;
+	/*
 	let Actor2 = Scene.AddActor( new Actor_t('Sphere2') );
 	Actor2.Shape = new Box_t(0.1,0.2,0.1);
 	Actor2.Colour = [0.5,0.5,0];

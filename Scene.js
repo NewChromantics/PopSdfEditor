@@ -161,7 +161,8 @@ export class SceneManager_t
 			const Materialf = `(1000.0 + ${ActorIndex}.0)`;
 			Globals.push(`const float ${Material} = ${Materialf};`);
 			
-			PushMaterial('Lit',Material,ActorUniforms.Colour.Uniform,ActorUniforms.Specular.Uniform);
+			PushMaterial('Flat',Material,ActorUniforms.Colour.Uniform,ActorUniforms.Specular.Uniform);
+			//PushMaterial('Lit',Material,ActorUniforms.Colour.Uniform,ActorUniforms.Specular.Uniform);
 			
 			
 			//	setup position/map/sdf
