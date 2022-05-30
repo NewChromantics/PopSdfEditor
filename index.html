@@ -2,17 +2,35 @@
 <head>
 <script src="PopEngineCommon/WebComponent_TreeView/TreeView.js" type=module></script>
 <style>
-body
+
+html, body
 {
-	display:	flex;
 	margin:		0px;
-	background:	red;
-}
-canvas
-{
-	background:	black;
+	padding:	0px;
+	background:	#333;
 }
 
+body
+{
+	display:	grid;
+	grid-template-columns:	10em 1fr;
+	grid-template-areas:	"Tree Canvas";
+}
+
+tree-view
+{
+	display:	block;
+	grid-area:	Tree;
+}
+
+canvas
+{
+	display:	block;
+	grid-area:	Canvas;
+	width:	100%;
+	height:	100%;
+}
+/*
 tree-view
 {
 	min-width:	40vw;
@@ -25,7 +43,7 @@ tree-view
 	font-size:	10pt;
 	font-family:	sans-serif;
 }
-
+*/
 
 @media (prefers-color-scheme: dark) 
 {

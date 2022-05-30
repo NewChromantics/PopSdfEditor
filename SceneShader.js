@@ -16,8 +16,8 @@ uniform float TimeNormal;
 #define PinkColour		vec4(0.8,0,0.8,1.0)
 
 #define FarZ			20.0
-#define MAX_STEPS		40
-#define CLOSE_ENOUGH	0.002
+#define MAX_STEPS		10
+#define CLOSE_ENOUGH	0.01001
 
 float sdSphere(vec3 Position,vec4 Sphere);
 float sdBox( vec3 p, vec3 c, vec3 b );
@@ -121,7 +121,7 @@ dmh_t GetRayCastDistanceHeatMaterial(vec3 RayPos,vec3 RayDir)
 			//HitMaterial = Mat_Red;
 			break;
 		}
-		if ( StepDistanceMat.x < CLOSE_ENOUGH )
+		if ( StepDistanceMat.x <= CLOSE_ENOUGH )
 		{
 			HitMaterial = StepDistanceMat.y;
 			break;
@@ -251,7 +251,8 @@ void main()
 	vec3 ShadowRayPos = HitPos+Normal*0.01;
 	vec3 ShadowRayDir = normalize(WorldLightPosition-HitPos);
 	//float Shadow = softshadow( ShadowRayPos, ShadowRayDir, Shadowk );
-	float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
+	//float Shadow = HardShadow( ShadowRayPos, ShadowRayDir );
+	float Shadow = 0.0;
 
 	//	check shadow first, as we don't want specular to appear when in shadow
 	vec4 Colour = GetMaterialColour(HitDistance.w,HitPos,Normal,1.0-Shadow);
